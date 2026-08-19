@@ -46,8 +46,8 @@ ollama pull llava:7b          # optional: reading your screen
 **3. The app**
 
 ```bash
-git clone https://github.com/riyagoelrs/cluely.git
-cd cluely
+git clone https://github.com/riyagoelrs/cluelydupe.git
+cd cluelydupe
 npm install
 cp .env.example .env          # set WHISPER_MODEL to the path from step 1
 npm start
