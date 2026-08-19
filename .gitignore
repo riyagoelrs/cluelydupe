@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Your keys and your notes — never commit these.
+.env
+context.md
