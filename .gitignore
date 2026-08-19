@@ -1,6 +1,7 @@
 node_modules/
 dist/
 
-# Your keys and your notes — never commit these.
+# Your keys, your notes, your prep material — never commit these.
 .env
 context.md
+materials/
