@@ -50,7 +50,24 @@ git clone https://github.com/riyagoelrs/cluelydupe.git
 cd cluelydupe
 npm install
 cp .env.example .env          # set WHISPER_MODEL to the path from step 1
+npm run doctor                # checks every piece and names what's missing
 npm start
+```
+
+**Run `npm run doctor` first, and again whenever something breaks.** It checks the
+whisper binary and its flags, the model file, the Ollama daemon and each model you've
+pulled, your context and materials, and macOS's system-audio requirements — printing
+the exact command to fix anything that's wrong:
+
+```
+✓ Node               v22.18.0
+✓ whisper binary     whisper-cli
+✗ whisper model      not found at ~/ggml-base.en.bin
+                     → curl -L -o ~/ggml-base.en.bin https://huggingface.co/...
+✓ Ollama             http://127.0.0.1:11434
+✗ answer model       "llama3.1:8b" not pulled
+                     → ollama pull llama3.1:8b
+! materials          folder is empty — nothing to retrieve from
 ```
 
 `npm test` runs the logic tests — no Whisper, Ollama, or GPU required.
@@ -166,8 +183,8 @@ Electron process and returns a valid PNG.
 
 **Not verified** — live audio devices, and inference with real model weights. Neither
 can run in a headless CI container. The first time real speech goes in and a real model
-answers will be on your machine, so budget an hour for first-run friction and test
-against a YouTube video before a call that matters.
+answers will be on your machine, so run `npm run doctor` first and test against a
+YouTube video before a call that matters.
 
 ## How it's put together
 

@@ -341,3 +341,83 @@ test('materials degrade to an empty prompt when the folder is missing', async ()
   assert.equal(materials.stats().files, 0);
   assert.equal(await materials.prompt('anything'), '');
 });
+
+// --- preflight ------------------------------------------------------------
+// The doctor is the first thing a new machine runs, so its diagnoses have to be
+// right: sending someone to reinstall whisper when the real problem is a missing
+// model wastes the hour before a call.
+import { spawn as spawnDoctor } from 'node:child_process';
+
+function runDoctor(env) {
+  return new Promise((resolve) => {
+    const child = spawnDoctor(process.execPath, ['scripts/doctor.mjs'], {
+      cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '..'),
+      env: { ...process.env, ...env, NO_COLOR: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d.toString(); });
+    child.stderr.on('data', (d) => { out += d.toString(); });
+    child.on('close', (code) => resolve({ code, out }));
+  });
+}
+
+function stubBinary(dir, name, body) {
+  const file = path.join(dir, name);
+  fs.writeFileSync(file, body);
+  fs.chmodSync(file, 0o755);
+  return file;
+}
+
+test('doctor tells a crashing whisper binary apart from an outdated one', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cluely-doctor-'));
+  const model = path.join(dir, 'model.bin');
+  fs.writeFileSync(model, Buffer.alloc(11e6));
+
+  const base = { STT_PROVIDER: 'whisper', WHISPER_MODEL: model, ANSWER_PROVIDER: 'claude', ANTHROPIC_API_KEY: 'x' };
+
+  const crashing = await runDoctor({ ...base, WHISPER_BINARY: stubBinary(dir, 'crash.sh', '#!/bin/sh\nkill -ILL $$\n') });
+  assert.match(crashing.out, /crashed on startup/);
+  assert.doesNotMatch(crashing.out, /too old/, 'a crash must not be blamed on the version');
+  assert.equal(crashing.code, 1);
+
+  const outdated = await runDoctor({ ...base, WHISPER_BINARY: stubBinary(dir, 'old.sh', '#!/bin/sh\necho "-m FNAME --model FNAME"\n') });
+  assert.match(outdated.out, /missing flags/);
+  assert.equal(outdated.code, 1);
+
+  const missing = await runDoctor({ ...base, WHISPER_BINARY: path.join(dir, 'does-not-exist') });
+  assert.match(missing.out, /not found/);
+  assert.equal(missing.code, 1);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('doctor passes a healthy local setup and fails a truncated model', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cluely-doctor-ok-'));
+  const good = stubBinary(
+    dir,
+    'whisper.sh',
+    '#!/bin/sh\necho "--model --file --no-timestamps --no-prints --language"\n',
+  );
+
+  const full = path.join(dir, 'model.bin');
+  fs.writeFileSync(full, Buffer.alloc(11e6));
+  const healthy = await runDoctor({
+    STT_PROVIDER: 'whisper', WHISPER_BINARY: good, WHISPER_MODEL: full,
+    ANSWER_PROVIDER: 'claude', ANTHROPIC_API_KEY: 'x',
+  });
+  assert.doesNotMatch(healthy.out, /whisper binary.*(not found|crashed|missing flags)/);
+  assert.match(healthy.out, /Ready to run|Everything checks out/);
+  assert.equal(healthy.code, 0, 'warnings alone must not fail the check');
+
+  const truncated = path.join(dir, 'half.bin');
+  fs.writeFileSync(truncated, Buffer.alloc(2e6));
+  const partial = await runDoctor({
+    STT_PROVIDER: 'whisper', WHISPER_BINARY: good, WHISPER_MODEL: truncated,
+    ANSWER_PROVIDER: 'claude', ANTHROPIC_API_KEY: 'x',
+  });
+  assert.match(partial.out, /truncated download/);
+  assert.equal(partial.code, 1);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
