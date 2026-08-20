@@ -44,7 +44,10 @@ html, body {
 .bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
+  /* Wrap rather than clip: the window is resizable and the button count grows,
+     so any fixed width is a bug waiting to happen. */
+  flex-wrap: wrap;
   padding: 9px 9px 9px 11px;
   border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
@@ -90,7 +93,13 @@ html, body {
 #chip-docs:hover { color: var(--text); }
 .chip[data-live="error"] { color: var(--bad); border-color: rgba(255, 107, 107, 0.35); }
 
-.actions { display: flex; gap: 3px; flex: none; -webkit-app-region: no-drag; }
+.actions {
+  display: flex;
+  gap: 3px;
+  flex: none;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
 
 .btn {
   font: inherit;
@@ -104,6 +113,10 @@ html, body {
   cursor: pointer;
 }
 .btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--text); }
+.btn.icon { padding: 3px 7px; font-size: 12px; line-height: 1; color: var(--dim); }
+.btn.icon:hover { color: var(--text); }
+.btn.danger:hover { color: #fff; background: rgba(255, 95, 87, 0.55); border-color: rgba(255, 95, 87, 0.6); }
+
 .btn[data-on="true"] { color: var(--text); border-color: rgba(124, 140, 255, 0.5); background: rgba(124, 140, 255, 0.16); }
 .btn.primary[data-on="true"] { border-color: rgba(255, 95, 87, 0.5); background: rgba(255, 95, 87, 0.16); }
 

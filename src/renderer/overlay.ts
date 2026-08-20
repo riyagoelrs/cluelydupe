@@ -12,6 +12,7 @@ interface OverlayApi {
   toggleAuto(): void;
   clear(): void;
   setClickThrough(enabled: boolean): void;
+  hide(): void;
   openContext(): void;
   openMaterials(): void;
   reloadMaterials(): void;
@@ -189,6 +190,8 @@ el('btn-clear').addEventListener('click', () => window.cluely.clear());
 el('btn-context').addEventListener('click', () => window.cluely.openContext());
 el('btn-materials').addEventListener('click', () => window.cluely.openMaterials());
 el('btn-screen').addEventListener('click', () => window.cluely.answerScreen());
+el('btn-hide').addEventListener('click', () => window.cluely.hide());
+el('btn-quit').addEventListener('click', () => window.cluely.quit());
 // Re-index after editing the folder without restarting the app.
 chipDocs.addEventListener('click', () => window.cluely.reloadMaterials());
 btnGhost.addEventListener('click', () => {

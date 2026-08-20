@@ -7,6 +7,7 @@ import { Transcript } from './transcript';
 import { AnswerEngine } from './answer-engine';
 import { looksLikeQuestion, questionKey } from './question-detector';
 import { createCaptureWindow, createOverlayWindow, installMediaHandlers } from './windows';
+import { microphoneProblem, screenAccessProblem } from './permissions';
 import type { AnswerPatch, CaptureState, Speaker, Status, TranscriptLine } from '../shared/types';
 
 // macOS routes loopback audio through ScreenCaptureKit, and Chromium keeps that
@@ -59,7 +60,7 @@ class App {
   }
 
   start(): void {
-    installMediaHandlers();
+    installMediaHandlers((message) => this.pushStatus({ message }));
     this.overlay = createOverlayWindow(this.cfg);
     this.capture = createCaptureWindow();
 
@@ -253,11 +254,16 @@ class App {
     ipcMain.on('ctl:open-context', () => {
       void shell.openPath(ensureContextFile(this.cfg));
     });
+    ipcMain.on('ctl:hide', () => this.overlay?.hide());
     ipcMain.on('ctl:quit', () => app.quit());
   }
 
   /** Configuration problems worth interrupting the user about, before a call starts. */
   private setupProblem(): string | undefined {
+    const screenBlocked = screenAccessProblem();
+    if (screenBlocked) return screenBlocked;
+    const micBlocked = microphoneProblem();
+    if (micBlocked) return micBlocked;
     if (this.cfg.sttProvider === 'whisper' && !this.cfg.whisperModel) {
       return 'WHISPER_MODEL is not set — point it at a ggml model file (see the README).';
     }
@@ -293,6 +299,7 @@ class App {
       ['CommandOrControl+Shift+S', () => void this.answerWithScreen()],
       ['CommandOrControl+Shift+H', () => this.toggleOverlay()],
       ['CommandOrControl+Shift+K', () => ipcMain.emit('ctl:clear')],
+      ['CommandOrControl+Shift+Q', () => app.quit()],
       ['CommandOrControl+Shift+Left', () => this.nudgeOverlay(-60, 0)],
       ['CommandOrControl+Shift+Right', () => this.nudgeOverlay(60, 0)],
     ];

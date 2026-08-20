@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { BrowserWindow, desktopCapturer, screen, session } from 'electron';
 import type { Config } from './config';
+import { explainCaptureFailure } from './permissions';
 
 const OVERLAY_WIDTH = 520;
 const OVERLAY_HEIGHT = 640;
@@ -74,7 +75,7 @@ export function createCaptureWindow(): BrowserWindow {
  * capture window receives what the machine is playing (i.e. the other person)
  * without a picker dialog appearing mid-call.
  */
-export function installMediaHandlers(): void {
+export function installMediaHandlers(onProblem: (message: string) => void): void {
   const s = session.defaultSession;
 
   s.setDisplayMediaRequestHandler(
@@ -84,12 +85,18 @@ export function installMediaHandlers(): void {
         .then((sources) => {
           const screenSource = sources[0];
           if (!screenSource) {
+            // Handing back an empty stream here produces an opaque failure in the
+            // capture renderer, so say what actually went wrong.
+            onProblem(explainCaptureFailure(new Error('no screen sources returned')));
             callback({ video: undefined, audio: undefined });
             return;
           }
           callback({ video: screenSource, audio: 'loopback' });
         })
-        .catch(() => callback({ video: undefined, audio: undefined }));
+        .catch((err: unknown) => {
+          onProblem(explainCaptureFailure(err));
+          callback({ video: undefined, audio: undefined });
+        });
     },
     // The system picker would prompt on every start; we always want the same thing.
     { useSystemPicker: false },

@@ -138,6 +138,7 @@ strip at the bottom.
 | `⌘/Ctrl+Shift+S` | Answer using what's on screen right now |
 | `⌘/Ctrl+Shift+H` | Hide / show the overlay |
 | `⌘/Ctrl+Shift+K` | Clear transcript and answers |
+| `⌘/Ctrl+Shift+Q` | Quit |
 | `⌘/Ctrl+Shift+←/→` | Nudge the overlay sideways |
 
 **Screen** (`⌘/Ctrl+Shift+S`) is for questions the audio can't carry — "how would you
@@ -145,6 +146,9 @@ fix this?" over a code editor. It grabs the screen, hides the overlay first so i
 answers aren't in the shot, and routes to `OLLAMA_VISION_MODEL` instead of the text
 model. Expect it to be slower than a spoken answer: a vision model is a bigger load,
 and Ollama may have to swap models in.
+
+The window is frameless and has no menu bar, so **—** hides it (bring it back with
+`⌘/Ctrl+Shift+H`) and **✕** quits.
 
 Title bar: **Screen** reads your screen, **Auto** toggles automatic answering, **Ghost** makes the overlay
 click-through (move the pointer over the title bar to get it back), **Notes** opens
@@ -167,6 +171,11 @@ Capturing the *other* person means capturing what your machine plays:
   [BlackHole](https://github.com/ExistentialAudio/BlackHole), route your call app
   through a Multi-Output Device that includes it, and set `SYSTEM_AUDIO_DEVICE=BlackHole`.
 - **Linux** — use a PulseAudio/PipeWire monitor source: `SYSTEM_AUDIO_DEVICE=Monitor of`.
+
+On macOS, "Failed to get sources" means the **Screen Recording** permission — System
+Settings → Privacy & Security → Screen Recording, enable the app, then **quit and
+reopen it**. macOS does not apply that permission to an already-running process, which
+is why granting it and carrying on looks like it didn't work.
 
 If the **THEM** chip never turns green, fix that before anything else — hover it for
 the underlying error. Test on a YouTube video before you test on a real call.

@@ -20,6 +20,7 @@ const api = {
   openContext: () => ipcRenderer.send('ctl:open-context'),
   openMaterials: () => ipcRenderer.send('ctl:open-materials'),
   reloadMaterials: () => ipcRenderer.send('ctl:reload-materials'),
+  hide: () => ipcRenderer.send('ctl:hide'),
   quit: () => ipcRenderer.send('ctl:quit'),
 };
 
