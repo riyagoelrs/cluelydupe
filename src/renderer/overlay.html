@@ -5,38 +5,114 @@
 <body>
   <div class="shell">
     <header class="bar">
-      <div class="brand">
-        <span id="rec" class="rec" data-state="idle"></span>
-        <span class="name">cluely</span>
-      </div>
-      <div class="chips">
-        <span class="chip" id="chip-mic" title="Microphone">ME</span>
-        <span class="chip" id="chip-sys" title="System audio">THEM</span>
-        <span class="chip" id="chip-docs" title="Indexed materials">DOCS</span>
+      <div class="topline">
+        <div class="drag-surface" title="Drag here to move the assistant">
+          <div class="brand">
+            <span id="rec" class="rec" data-state="idle"></span>
+            <span class="name">cluely</span>
+          </div>
+          <div class="chips">
+            <span class="chip" id="chip-mic" title="Microphone">ME</span>
+            <span class="chip" id="chip-sys" title="System audio">THEM</span>
+            <span class="chip" id="chip-docs" title="Indexed materials">DOCS</span>
+          </div>
+          <span class="drag-hint">⋮⋮ drag</span>
+        </div>
+        <div class="window-actions">
+          <button id="btn-pin" class="btn" title="Float above everything (⌘/Ctrl+Shift+P)">Pin</button>
+          <button id="btn-hide" class="btn icon" title="Hide — bring it back with ⌘/Ctrl+Shift+H">—</button>
+          <button id="btn-quit" class="btn icon danger" title="Quit (⌘/Ctrl+Shift+Q)">✕</button>
+        </div>
       </div>
       <div class="actions">
         <button id="btn-listen" class="btn primary" title="⌘/Ctrl+Shift+L">Listen</button>
         <button id="btn-auto" class="btn" title="Answer questions automatically">Auto</button>
         <button id="btn-screen" class="btn" title="Answer using what's on screen (⌘/Ctrl+Shift+S)">Screen</button>
-        <button id="btn-ghost" class="btn" title="Let clicks pass through the overlay">Ghost</button>
-        <button id="btn-context" class="btn" title="Edit the notes sent with every answer">Notes</button>
-        <button id="btn-materials" class="btn" title="Open your materials folder — click DOCS to re-index">Docs</button>
+        <button id="btn-ghost" class="btn" title="Let clicks pass through the overlay (⌘/Ctrl+Shift+G)">Ghost</button>
+        <button id="btn-context" class="btn" title="Edit always-on answer context inside the app">Notes</button>
+        <button id="btn-materials" class="btn" title="Add and manage prep files">Files</button>
+        <button id="btn-setup" class="btn" title="Check Whisper, Ollama, and macOS permissions">Setup</button>
         <button id="btn-clear" class="btn" title="⌘/Ctrl+Shift+K">Clear</button>
-        <button id="btn-pin" class="btn" title="Float above everything, or sit behind other windows (⌘/Ctrl+Shift+P)">Pin</button>
-        <button id="btn-hide" class="btn icon" title="Hide — bring it back with ⌘/Ctrl+Shift+H">—</button>
-        <button id="btn-quit" class="btn icon danger" title="Quit (⌘/Ctrl+Shift+Q)">✕</button>
       </div>
     </header>
 
-    <div id="notice" class="notice" hidden></div>
+    <button id="notice" class="notice" hidden></button>
+
+    <section id="panel" class="panel" hidden>
+      <div class="panel-head">
+        <div>
+          <div id="panel-title" class="panel-title"></div>
+          <div id="panel-subtitle" class="panel-subtitle"></div>
+        </div>
+        <button id="panel-close" class="btn icon" title="Close">✕</button>
+      </div>
+
+      <div id="panel-notes" class="panel-view" hidden>
+        <textarea id="context-editor" class="editor" spellcheck="true" placeholder="Your resume facts, deal details, stories, numbers you want the assistant to remember..."></textarea>
+        <div class="panel-footer">
+          <span id="context-feedback" class="feedback"></span>
+          <button id="context-save" class="btn primary-action">Save notes</button>
+        </div>
+      </div>
+
+      <div id="panel-materials" class="panel-view" hidden>
+        <div class="panel-toolbar">
+          <button id="materials-add" class="btn primary-action">Add files…</button>
+          <button id="materials-refresh" class="btn">Re-index</button>
+          <button id="materials-reveal" class="btn">Show folder</button>
+        </div>
+        <div id="materials-feedback" class="feedback block"></div>
+        <div class="file-help">Text/Markdown work everywhere. On macOS the importer also converts Word/RTF locally and extracts PDFs locally when possible.</div>
+        <div id="materials-list" class="file-list"></div>
+      </div>
+
+      <div id="panel-setup" class="panel-view" hidden>
+        <div class="setup-list">
+          <div class="setup-row">
+            <span id="setup-cli-dot" class="setup-dot"></span>
+            <div class="setup-copy"><b>Whisper engine</b><span id="setup-cli-text"></span></div>
+          </div>
+          <div class="setup-row">
+            <span id="setup-model-dot" class="setup-dot"></span>
+            <div class="setup-copy"><b>Whisper model</b><span id="setup-model-text"></span></div>
+            <div class="setup-actions">
+              <button id="setup-choose-model" class="btn">Choose…</button>
+              <button id="setup-download-model" class="btn primary-action">Download base.en</button>
+            </div>
+          </div>
+          <div class="setup-row">
+            <span id="setup-screen-dot" class="setup-dot"></span>
+            <div class="setup-copy"><b>Screen + system audio</b><span id="setup-screen-text"></span></div>
+            <button id="setup-screen-settings" class="btn">Open Settings</button>
+          </div>
+          <div class="setup-row">
+            <span id="setup-mic-dot" class="setup-dot"></span>
+            <div class="setup-copy"><b>Microphone</b><span id="setup-mic-text"></span></div>
+            <button id="setup-mic-settings" class="btn">Open Settings</button>
+          </div>
+          <div class="setup-row">
+            <span id="setup-ollama-dot" class="setup-dot"></span>
+            <div class="setup-copy"><b>Ollama</b><span id="setup-ollama-text"></span></div>
+          </div>
+          <div class="setup-row">
+            <span id="setup-models-dot" class="setup-dot"></span>
+            <div class="setup-copy"><b>Answer models</b><span id="setup-models-text"></span></div>
+          </div>
+        </div>
+        <div id="setup-feedback" class="feedback block"></div>
+        <div class="setup-footer">
+          <button id="setup-refresh" class="btn">Refresh checks</button>
+          <button id="setup-reset-window" class="btn">Reset window</button>
+        </div>
+      </div>
+    </section>
 
     <main id="answers" class="answers">
       <div class="empty" id="empty">
-        <p class="empty-title">Nothing yet</p>
+        <p class="empty-title">Ready when you are</p>
         <p class="empty-body">
-          Hit <b>Listen</b>, then let them talk. Questions get answered here on their own.<br />
-          <b>⌘/Ctrl+Shift+Space</b> answers on demand · <b>⌘/Ctrl+Shift+S</b> reads your screen<br />
-          <b>⌘/Ctrl+Shift+H</b> hides this · <b>⌘/Ctrl+Shift+Q</b> quits.
+          Hit <b>Listen</b>, then join your call. Questions from the other side are answered here automatically.<br />
+          <b>⌘/Ctrl+Shift+Space</b> answer now · <b>⌘/Ctrl+Shift+G</b> toggle Ghost · <b>⌘/Ctrl+Shift+H</b> hide
         </p>
       </div>
     </main>
