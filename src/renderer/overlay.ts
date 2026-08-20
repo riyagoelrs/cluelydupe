@@ -31,8 +31,12 @@ declare global {
   }
 }
 
+const COMPACT_HEIGHT = 58;
+const PANEL_HEIGHT = 520;
+const MAX_OVERLAY_HEIGHT = 390;
+const MAX_ANSWER_AREA = 285;
 const MAX_TRANSCRIPT_LINES = 40;
-const MAX_CARDS = 30;
+const MAX_CARDS = 3;
 
 const el = <T extends HTMLElement>(id: string): T => {
   const node = document.getElementById(id);
@@ -42,16 +46,18 @@ const el = <T extends HTMLElement>(id: string): T => {
 
 const answersEl = el('answers');
 const transcriptEl = el('transcript');
-const emptyEl = el('empty');
-const noticeEl = el('notice');
+const noticeEl = el<HTMLButtonElement>('notice');
 const recEl = el('rec');
 const chipMic = el('chip-mic');
 const chipSys = el('chip-sys');
+const chipDocs = el('chip-docs');
 const btnListen = el<HTMLButtonElement>('btn-listen');
 const btnAuto = el<HTMLButtonElement>('btn-auto');
 const btnGhost = el<HTMLButtonElement>('btn-ghost');
-const chipDocs = el('chip-docs');
 const btnPin = el<HTMLButtonElement>('btn-pin');
+const btnMore = el<HTMLButtonElement>('btn-more');
+const moreMenu = el('more-menu');
+const panelEl = el('panel');
 
 interface CardNodes {
   root: HTMLElement;
@@ -62,6 +68,52 @@ interface CardNodes {
 const cards = new Map<string, CardNodes>();
 const lines = new Map<string, HTMLElement>();
 let ghost = false;
+let fitFrame = 0;
+
+function setWindowHeight(height: number): void {
+  const target = Math.max(COMPACT_HEIGHT, Math.round(height));
+  if (Math.abs(window.innerHeight - target) < 2) return;
+  window.cluely.resizeBegin();
+  window.cluely.resizeTo(null, target);
+  window.cluely.resizeEnd();
+}
+
+function desiredHeight(): number {
+  if (!panelEl.hidden) return PANEL_HEIGHT;
+
+  let height = COMPACT_HEIGHT;
+  if (!moreMenu.hidden) height += 43;
+  if (!noticeEl.hidden) height += Math.max(34, noticeEl.scrollHeight);
+
+  if (!answersEl.hidden && cards.size) {
+    const answerHeight = Math.min(MAX_ANSWER_AREA, Math.max(118, answersEl.scrollHeight + 4));
+    height += answerHeight;
+  }
+
+  return Math.min(MAX_OVERLAY_HEIGHT, height);
+}
+
+function scheduleFit(): void {
+  if (fitFrame) cancelAnimationFrame(fitFrame);
+  fitFrame = requestAnimationFrame(() => {
+    fitFrame = 0;
+    setWindowHeight(desiredHeight());
+  });
+}
+
+function friendlyProblem(problem: string | undefined): string | undefined {
+  if (!problem) return undefined;
+  if (/failed to get sources|screen access|screen recording/i.test(problem)) {
+    return 'Call audio is blocked by macOS. Click here → enable Screen Recording for cluely/Electron → fully quit and reopen the app.';
+  }
+  if (/whisper_model|whisper model/i.test(problem)) {
+    return 'Whisper needs a speech model. Click here to finish Setup.';
+  }
+  if (/ollama/i.test(problem) && /isn.t running|not reachable|could not reach/i.test(problem)) {
+    return 'The answer model is not running. Click here to check Setup.';
+  }
+  return problem;
+}
 
 // ------------------------------------------------------------------ answers
 
@@ -69,7 +121,7 @@ function ensureCard(patch: AnswerPatch): CardNodes {
   const existing = cards.get(patch.id);
   if (existing) return existing;
 
-  emptyEl.hidden = true;
+  answersEl.hidden = false;
 
   const root = document.createElement('article');
   root.className = 'card';
@@ -94,7 +146,6 @@ function ensureCard(patch: AnswerPatch): CardNodes {
   const nodes: CardNodes = { root, question: qtext, body };
   cards.set(patch.id, nodes);
 
-  // Newest first; drop the tail so a long call doesn't grow the DOM forever.
   while (answersEl.querySelectorAll('.card').length > MAX_CARDS) {
     const last = answersEl.querySelector('.card:last-of-type');
     if (!last) break;
@@ -104,10 +155,14 @@ function ensureCard(patch: AnswerPatch): CardNodes {
     last.remove();
   }
 
+  scheduleFit();
   return nodes;
 }
 
 function applyAnswer(patch: AnswerPatch): void {
+  // The answer is the primary UI. Close the controls automatically when the
+  // other side asks something so the response gets the available space.
+  moreMenu.hidden = true;
   const card = ensureCard(patch);
   if (patch.question !== undefined) card.question.textContent = patch.question;
   if (patch.body !== undefined) card.body.textContent = patch.body;
@@ -117,6 +172,7 @@ function applyAnswer(patch: AnswerPatch): void {
     card.body.classList.toggle('dots', patch.status === 'thinking');
   }
   answersEl.scrollTop = 0;
+  scheduleFit();
 }
 
 // --------------------------------------------------------------- transcript
@@ -149,8 +205,6 @@ function applyTranscript(line: TranscriptLine): void {
     }
     first.remove();
   }
-
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
 }
 
 // ------------------------------------------------------------------- status
@@ -162,24 +216,21 @@ function applyStatus(status: Status): void {
   btnAuto.dataset.on = String(status.autoAnswer);
   btnGhost.dataset.on = String(status.clickThrough);
   btnPin.dataset.on = String(status.pinned);
-  btnPin.title = status.pinned
-    ? 'Floating above everything — click to let other windows cover it (⌘/Ctrl+Shift+P)'
-    : 'Behaving like a normal window — click to float it above everything';
 
   chipMic.dataset.live = status.mic.error ? 'error' : String(status.mic.capturing && status.mic.stt === 'up');
   chipSys.dataset.live = status.system.error ? 'error' : String(status.system.capturing && status.system.stt === 'up');
-  chipMic.title = status.mic.error ?? `mic: ${status.mic.capturing ? 'capturing' : 'off'} / stt ${status.mic.stt}`;
-  chipSys.title = status.system.error ?? `system: ${status.system.capturing ? 'capturing' : 'off'} / stt ${status.system.stt}`;
+  chipMic.title = status.mic.error ?? `mic: ${status.mic.capturing ? 'capturing' : 'off'} / speech ${status.mic.stt}`;
+  chipSys.title = status.system.error ?? `call audio: ${status.system.capturing ? 'capturing' : 'off'} / speech ${status.system.stt}`;
 
   const indexed = status.materials && status.materials !== 'none';
   chipDocs.dataset.live = String(Boolean(indexed));
-  chipDocs.title = indexed
-    ? `Materials indexed: ${status.materials} — click to re-index`
-    : 'No materials indexed — click "Docs" to open the folder';
+  chipDocs.title = indexed ? `Prep indexed: ${status.materials}` : 'No prep files indexed';
 
-  const problem = status.message ?? status.mic.error ?? status.system.error;
+  const rawProblem = status.message ?? status.mic.error ?? status.system.error;
+  const problem = friendlyProblem(rawProblem);
   noticeEl.textContent = problem ?? '';
   noticeEl.hidden = !problem;
+  scheduleFit();
 }
 
 // ------------------------------------------------------------------- wiring
@@ -190,9 +241,11 @@ window.cluely.onStatus(applyStatus);
 window.cluely.onClear(() => {
   cards.clear();
   lines.clear();
-  for (const card of Array.from(answersEl.querySelectorAll('.card'))) card.remove();
+  answersEl.replaceChildren();
   transcriptEl.replaceChildren();
-  emptyEl.hidden = false;
+  answersEl.hidden = true;
+  moreMenu.hidden = true;
+  scheduleFit();
 });
 
 btnListen.addEventListener('click', () => window.cluely.toggleListen());
@@ -203,19 +256,36 @@ el('btn-materials').addEventListener('click', () => window.cluely.openMaterials(
 el('btn-screen').addEventListener('click', () => window.cluely.answerScreen());
 el('btn-hide').addEventListener('click', () => window.cluely.hide());
 btnPin.addEventListener('click', () => window.cluely.togglePin());
+el('btn-quit').addEventListener('click', () => window.cluely.quit());
 
-// Resizing uses a pointer capture rather than window-level mouse listeners: a
-// drag outward leaves the window within a few pixels, and once it does the
-// window stops receiving mousemove and mouseup entirely — so the drag would
-// never end and the panel would follow the cursor indefinitely.
-//
-// Sizes are computed from client coordinates, not screen coordinates. The
-// window's top-left corner does not move while dragging its bottom or right
-// edge, so client coordinates stay a stable reference and can exceed the window
-// bounds during a capture — exactly what resizing outward needs.
+btnMore.addEventListener('click', () => {
+  moreMenu.hidden = !moreMenu.hidden;
+  scheduleFit();
+});
+
+chipDocs.addEventListener('click', () => window.cluely.reloadMaterials());
+
+btnGhost.addEventListener('click', () => {
+  ghost = !ghost;
+  window.cluely.setClickThrough(ghost);
+});
+
+// Panel code lives in panels.ts. Observe it here so opening setup/files/notes
+// automatically gives the panel room and closing it returns to the tiny bar.
+new MutationObserver(() => {
+  if (!panelEl.hidden) {
+    moreMenu.hidden = true;
+    setWindowHeight(PANEL_HEIGHT);
+  } else {
+    answersEl.hidden = cards.size === 0;
+    scheduleFit();
+  }
+}).observe(panelEl, { attributes: true, attributeFilter: ['hidden'] });
+
+// -------------------------------------------------------------- move / resize
+
 function makeGrip(id: string, axis: 'x' | 'y' | 'both'): void {
   const grip = el(id);
-  /** Distance from the pointer to the edge at grab time, so it doesn't jump. */
   let offset: { x: number; y: number } | undefined;
 
   grip.addEventListener('pointerdown', (event: PointerEvent) => {
@@ -247,17 +317,15 @@ function makeGrip(id: string, axis: 'x' | 'y' | 'both'): void {
   grip.addEventListener('pointercancel', finish);
 }
 
-// Dragging the bar moves the window. Buttons and chips are excluded so a click
-// on them stays a click.
-const bar = document.querySelector('.bar');
-if (bar) {
+const dragSurface = document.querySelector('.drag-surface');
+if (dragSurface) {
   let dragging = false;
-  bar.addEventListener('pointerdown', (event) => {
+  dragSurface.addEventListener('pointerdown', (event) => {
     const pointer = event as PointerEvent;
     if (pointer.button !== 0) return;
-    if ((pointer.target as HTMLElement).closest('button, .chip, .grip-edge')) return;
+    if ((pointer.target as HTMLElement).closest('button, .chip')) return;
     pointer.preventDefault();
-    (bar as HTMLElement).setPointerCapture(pointer.pointerId);
+    (dragSurface as HTMLElement).setPointerCapture(pointer.pointerId);
     dragging = true;
     window.cluely.moveBegin();
   });
@@ -266,34 +334,27 @@ if (bar) {
     if (!dragging) return;
     dragging = false;
     const pointer = event as PointerEvent;
-    if ((bar as HTMLElement).hasPointerCapture(pointer.pointerId)) {
-      (bar as HTMLElement).releasePointerCapture(pointer.pointerId);
+    if ((dragSurface as HTMLElement).hasPointerCapture(pointer.pointerId)) {
+      (dragSurface as HTMLElement).releasePointerCapture(pointer.pointerId);
     }
     window.cluely.moveEnd();
   };
-  bar.addEventListener('pointerup', stopDrag);
-  bar.addEventListener('pointercancel', stopDrag);
+  dragSurface.addEventListener('pointerup', stopDrag);
+  dragSurface.addEventListener('pointercancel', stopDrag);
 }
 
 makeGrip('grip-right', 'x');
 makeGrip('grip-bottom', 'y');
 makeGrip('grip-corner', 'both');
-el('btn-quit').addEventListener('click', () => window.cluely.quit());
-// Re-index after editing the folder without restarting the app.
-chipDocs.addEventListener('click', () => window.cluely.reloadMaterials());
-btnGhost.addEventListener('click', () => {
-  ghost = !ghost;
-  window.cluely.setClickThrough(ghost);
-});
 
-// Ghost mode makes the whole window click-through, including this button, so
-// give the header back its clicks whenever the pointer is over it.
-el('rec').closest('.bar')?.addEventListener('mouseenter', () => {
+// Ghost mode makes the window click-through. Give the bar its clicks back while
+// the pointer is over it; the global hotkey remains the guaranteed escape hatch.
+document.querySelector('.bar')?.addEventListener('mouseenter', () => {
   if (ghost) window.cluely.setClickThrough(false);
 });
 document.addEventListener('mouseleave', () => {
   if (ghost) window.cluely.setClickThrough(true);
 });
 
-// Listeners are attached; ask main for the current state.
 window.cluely.ready();
+scheduleFit();
