@@ -216,3 +216,22 @@ html, body {
 .line[data-speaker="them"] .who { color: var(--them); }
 .line[data-final="false"] { opacity: 0.55; font-style: italic; }
 .line .said { overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------- resize */
+
+/* A frameless transparent window gets no OS resize handles, so this is it. */
+.grip {
+  position: fixed;
+  /* Inset so it clears the shell's rounded corner instead of hiding in it. */
+  right: 3px;
+  bottom: 3px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  -webkit-app-region: no-drag;
+  background:
+    linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 58%, transparent 58%,
+      transparent 68%, var(--muted) 68%, var(--muted) 81%, transparent 81%);
+  opacity: 0.75;
+}
+.grip:hover { opacity: 1; }

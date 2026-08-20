@@ -13,6 +13,9 @@ interface OverlayApi {
   clear(): void;
   setClickThrough(enabled: boolean): void;
   hide(): void;
+  togglePin(): void;
+  resizeBegin(): void;
+  resizeEnd(): void;
   openContext(): void;
   openMaterials(): void;
   reloadMaterials(): void;
@@ -45,6 +48,7 @@ const btnListen = el<HTMLButtonElement>('btn-listen');
 const btnAuto = el<HTMLButtonElement>('btn-auto');
 const btnGhost = el<HTMLButtonElement>('btn-ghost');
 const chipDocs = el('chip-docs');
+const btnPin = el<HTMLButtonElement>('btn-pin');
 
 interface CardNodes {
   root: HTMLElement;
@@ -154,6 +158,10 @@ function applyStatus(status: Status): void {
   btnListen.dataset.on = String(status.state === 'listening' || status.state === 'starting');
   btnAuto.dataset.on = String(status.autoAnswer);
   btnGhost.dataset.on = String(status.clickThrough);
+  btnPin.dataset.on = String(status.pinned);
+  btnPin.title = status.pinned
+    ? 'Floating above everything — click to let other windows cover it (⌘/Ctrl+Shift+P)'
+    : 'Behaving like a normal window — click to float it above everything';
 
   chipMic.dataset.live = status.mic.error ? 'error' : String(status.mic.capturing && status.mic.stt === 'up');
   chipSys.dataset.live = status.system.error ? 'error' : String(status.system.capturing && status.system.stt === 'up');
@@ -191,6 +199,17 @@ el('btn-context').addEventListener('click', () => window.cluely.openContext());
 el('btn-materials').addEventListener('click', () => window.cluely.openMaterials());
 el('btn-screen').addEventListener('click', () => window.cluely.answerScreen());
 el('btn-hide').addEventListener('click', () => window.cluely.hide());
+btnPin.addEventListener('click', () => window.cluely.togglePin());
+
+// The grip only starts the drag; main follows the cursor from there, because a
+// resize drag leaves the window almost immediately and mouse events stop.
+const grip = el('grip');
+grip.addEventListener('mousedown', (event) => {
+  event.preventDefault();
+  window.cluely.resizeBegin();
+});
+window.addEventListener('mouseup', () => window.cluely.resizeEnd());
+window.addEventListener('blur', () => window.cluely.resizeEnd());
 el('btn-quit').addEventListener('click', () => window.cluely.quit());
 // Re-index after editing the folder without restarting the app.
 chipDocs.addEventListener('click', () => window.cluely.reloadMaterials());

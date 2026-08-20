@@ -72,6 +72,8 @@ export interface Config {
   contentProtection: boolean;
   /** Where the operator's background notes live (resume, product facts, ...). */
   contextFile: string;
+  /** Where the overlay's size, position and pin state are remembered. */
+  stateFile: string;
   appRoot: string;
 }
 
@@ -174,6 +176,7 @@ export function loadConfig(): Config {
     contextLines: int(process.env.CONTEXT_LINES, 24),
     contentProtection: bool(process.env.CONTENT_PROTECTION, true),
     contextFile: resolveContextFile(appRoot),
+    stateFile: path.join(userDataDir(), 'window-state.json'),
     appRoot,
   };
   return cached;

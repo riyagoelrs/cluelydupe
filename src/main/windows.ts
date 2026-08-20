@@ -2,19 +2,34 @@ import * as path from 'node:path';
 import { BrowserWindow, desktopCapturer, screen, session } from 'electron';
 import type { Config } from './config';
 import { explainCaptureFailure } from './permissions';
+import { clampToDisplay, type WindowState } from './window-state';
 
 const OVERLAY_WIDTH = 520;
 const OVERLAY_HEIGHT = 640;
 const MARGIN = 24;
+export const MIN_WIDTH = 320;
+export const MIN_HEIGHT = 220;
 
-export function createOverlayWindow(cfg: Config): BrowserWindow {
+export function createOverlayWindow(cfg: Config, state: WindowState = {}): BrowserWindow {
   const work = screen.getPrimaryDisplay().workArea;
 
-  const win = new BrowserWindow({
+  const defaults = {
     width: OVERLAY_WIDTH,
     height: Math.min(OVERLAY_HEIGHT, work.height - MARGIN * 2),
     x: work.x + work.width - OVERLAY_WIDTH - MARGIN,
     y: work.y + MARGIN,
+  };
+  const bounds = clampToDisplay({
+    width: Math.max(MIN_WIDTH, state.width ?? defaults.width),
+    height: Math.max(MIN_HEIGHT, state.height ?? defaults.height),
+    x: state.x ?? defaults.x,
+    y: state.y ?? defaults.y,
+  });
+
+  const win = new BrowserWindow({
+    ...bounds,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
     frame: false,
     transparent: true,
     hasShadow: false,
@@ -35,9 +50,7 @@ export function createOverlayWindow(cfg: Config): BrowserWindow {
     },
   });
 
-  // 'screen-saver' keeps the overlay above full-screen call windows.
-  win.setAlwaysOnTop(true, 'screen-saver');
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  setPinned(win, state.pinned ?? true);
   // Excludes the overlay from screen shares and screenshots, so your own notes
   // don't end up on the shared screen. Set CONTENT_PROTECTION=false to disable.
   win.setContentProtection(cfg.contentProtection);
@@ -46,6 +59,18 @@ export function createOverlayWindow(cfg: Config): BrowserWindow {
   win.once('ready-to-show', () => win.showInactive());
 
   return win;
+}
+
+/**
+ * Pinned: floats above everything, including full-screen call windows, and
+ * follows you between spaces — necessary during a call, insufferable otherwise.
+ * Unpinned: an ordinary window that goes behind whatever you focus.
+ */
+export function setPinned(win: BrowserWindow, pinned: boolean): void {
+  // 'screen-saver' is the only level that clears a full-screen Zoom/Meet window.
+  if (pinned) win.setAlwaysOnTop(true, 'screen-saver');
+  else win.setAlwaysOnTop(false);
+  win.setVisibleOnAllWorkspaces(pinned, { visibleOnFullScreen: pinned });
 }
 
 /**

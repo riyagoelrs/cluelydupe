@@ -21,6 +21,9 @@ const api = {
   openMaterials: () => ipcRenderer.send('ctl:open-materials'),
   reloadMaterials: () => ipcRenderer.send('ctl:reload-materials'),
   hide: () => ipcRenderer.send('ctl:hide'),
+  togglePin: () => ipcRenderer.send('ctl:toggle-pin'),
+  resizeBegin: () => ipcRenderer.send('ctl:resize-begin'),
+  resizeEnd: () => ipcRenderer.send('ctl:resize-end'),
   quit: () => ipcRenderer.send('ctl:quit'),
 };
 

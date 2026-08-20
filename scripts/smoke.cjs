@@ -24,6 +24,7 @@ app.whenReady().then(async () => {
     system: { capturing: true, stt: 'up' },
     autoAnswer: true,
     clickThrough: false,
+    pinned: true,
   });
 
   send('ui:answer', {
@@ -55,6 +56,7 @@ app.whenReady().then(async () => {
     system: { capturing: true, stt: 'up' },
     autoAnswer: true,
     clickThrough: false,
+    pinned: true,
     materials: '6 files, 41 passages, semantic',
   });
 

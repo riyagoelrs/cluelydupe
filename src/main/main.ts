@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
 import { ensureContextFile, loadConfig, type Config } from './config';
 import { createSttProvider, type SttProvider, type SttSession } from './stt';
 import { Materials } from './materials';
@@ -6,7 +6,8 @@ import { captureScreen } from './screen';
 import { Transcript } from './transcript';
 import { AnswerEngine } from './answer-engine';
 import { looksLikeQuestion, questionKey } from './question-detector';
-import { createCaptureWindow, createOverlayWindow, installMediaHandlers } from './windows';
+import { createCaptureWindow, createOverlayWindow, installMediaHandlers, setPinned, MIN_HEIGHT, MIN_WIDTH } from './windows';
+import { clampToDisplay, loadState, saveState, type WindowState } from './window-state';
 import { microphoneProblem, screenAccessProblem } from './permissions';
 import type { AnswerPatch, CaptureState, Speaker, Status, TranscriptLine } from '../shared/types';
 
@@ -41,9 +42,12 @@ class App {
   private pending: { question: string; timer: NodeJS.Timeout } | undefined;
   private answered = new Map<string, number>();
   private wired = false;
+  private state: WindowState;
+  private resizing: NodeJS.Timeout | undefined;
 
   constructor() {
     this.cfg = loadConfig();
+    this.state = loadState(this.cfg.stateFile);
     this.provider = createSttProvider(this.cfg);
     this.transcript = new Transcript((line) => this.send('ui:transcript', line));
     this.materials = new Materials(this.cfg);
@@ -56,18 +60,29 @@ class App {
       system: { capturing: false, stt: 'down' },
       autoAnswer: this.cfg.autoAnswer,
       clickThrough: false,
+      pinned: this.state.pinned ?? true,
     };
   }
 
   start(): void {
     installMediaHandlers((message) => this.pushStatus({ message }));
-    this.overlay = createOverlayWindow(this.cfg);
+    this.overlay = createOverlayWindow(this.cfg, this.state);
     this.capture = createCaptureWindow();
 
     this.overlay.on('closed', () => {
       this.overlay = undefined;
       app.quit();
     });
+
+    // Remember where you put it and how big you made it.
+    const remember = () => {
+      if (!this.overlay || this.overlay.isDestroyed()) return;
+      const { x, y, width, height } = this.overlay.getBounds();
+      this.state = { ...this.state, x, y, width, height };
+      saveState(this.cfg.stateFile, this.state);
+    };
+    this.overlay.on('moved', remember);
+    this.overlay.on('resized', remember);
 
     // On macOS the app can be reactivated after its windows close; the IPC
     // handlers and hotkeys survive that, so only bind them once.
@@ -255,6 +270,9 @@ class App {
       void shell.openPath(ensureContextFile(this.cfg));
     });
     ipcMain.on('ctl:hide', () => this.overlay?.hide());
+    ipcMain.on('ctl:toggle-pin', () => this.setPinned(!this.status.pinned));
+    ipcMain.on('ctl:resize-begin', () => this.beginResize());
+    ipcMain.on('ctl:resize-end', () => this.endResize());
     ipcMain.on('ctl:quit', () => app.quit());
   }
 
@@ -300,6 +318,7 @@ class App {
       ['CommandOrControl+Shift+H', () => this.toggleOverlay()],
       ['CommandOrControl+Shift+K', () => ipcMain.emit('ctl:clear')],
       ['CommandOrControl+Shift+Q', () => app.quit()],
+      ['CommandOrControl+Shift+P', () => this.setPinned(!this.status.pinned)],
       ['CommandOrControl+Shift+Left', () => this.nudgeOverlay(-60, 0)],
       ['CommandOrControl+Shift+Right', () => this.nudgeOverlay(60, 0)],
     ];
@@ -309,6 +328,50 @@ class App {
       if (!globalShortcut.register(accelerator, handler)) {
         console.warn(`[cluely] could not register hotkey ${accelerator}`);
       }
+    }
+  }
+
+  private setPinned(pinned: boolean): void {
+    if (!this.overlay) return;
+    setPinned(this.overlay, pinned);
+    this.state = { ...this.state, pinned };
+    saveState(this.cfg.stateFile, this.state);
+    this.pushStatus({ pinned });
+  }
+
+  /**
+   * Frameless transparent windows have no OS resize handles, so the corner grip
+   * drives it. The pointer is polled from the screen rather than tracked through
+   * mouse events, because a drag routinely travels outside the window and the
+   * renderer stops hearing about it the moment it does.
+   */
+  private beginResize(): void {
+    if (!this.overlay || this.resizing) return;
+    const start = screen.getCursorScreenPoint();
+    const origin = this.overlay.getBounds();
+
+    this.resizing = setInterval(() => {
+      if (!this.overlay || this.overlay.isDestroyed()) return this.endResize();
+      const now = screen.getCursorScreenPoint();
+      this.overlay.setBounds(
+        clampToDisplay({
+          x: origin.x,
+          y: origin.y,
+          width: Math.max(MIN_WIDTH, origin.width + (now.x - start.x)),
+          height: Math.max(MIN_HEIGHT, origin.height + (now.y - start.y)),
+        }),
+      );
+    }, 16);
+  }
+
+  private endResize(): void {
+    if (!this.resizing) return;
+    clearInterval(this.resizing);
+    this.resizing = undefined;
+    if (this.overlay && !this.overlay.isDestroyed()) {
+      const { x, y, width, height } = this.overlay.getBounds();
+      this.state = { ...this.state, x, y, width, height };
+      saveState(this.cfg.stateFile, this.state);
     }
   }
 
@@ -338,6 +401,7 @@ class App {
   }
 
   shutdown(): void {
+    this.endResize();
     globalShortcut.unregisterAll();
     this.closeSessions();
     this.answers.cancel();
