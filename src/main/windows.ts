@@ -11,10 +11,24 @@ const MARGIN = 24;
 export const MIN_WIDTH = 360;
 export const MIN_HEIGHT = 58;
 
+let windowControlHandlersInstalled = false;
+
+function installWindowControlHandlers(): void {
+  if (windowControlHandlersInstalled) return;
+  windowControlHandlersInstalled = true;
+
+  ipcMain.on('ctl:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    win.minimize();
+  });
+}
+
 export function createOverlayWindow(cfg: Config, state: WindowState = {}): BrowserWindow {
   // Setup/notes/materials share the same live config object as Whisper and the
   // answer engine, so a model chosen in Setup is usable immediately.
   registerOperatorUi(cfg, () => ipcMain.emit('ctl:reload-materials'));
+  installWindowControlHandlers();
 
   const work = screen.getPrimaryDisplay().workArea;
   const width = Math.min(
@@ -39,7 +53,7 @@ export function createOverlayWindow(cfg: Config, state: WindowState = {}): Brows
     transparent: true,
     hasShadow: false,
     resizable: true,
-    minimizable: false,
+    minimizable: true,
     maximizable: false,
     skipTaskbar: true,
     fullscreenable: false,
@@ -53,7 +67,9 @@ export function createOverlayWindow(cfg: Config, state: WindowState = {}): Brows
     },
   });
 
-  setPinned(win, state.pinned ?? true);
+  // Normal-window behavior is the default. Pin is an explicit, session-only
+  // choice for moments when the user actually wants the answer above a call.
+  setPinned(win, false);
   win.setContentProtection(cfg.contentProtection);
 
   void win.loadFile(path.join(__dirname, '..', 'renderer', 'overlay.html'));
