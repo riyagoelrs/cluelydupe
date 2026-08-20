@@ -15,9 +15,12 @@ export interface WindowState {
 export function loadState(file: string): WindowState {
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as WindowState;
-    return typeof parsed === 'object' && parsed ? parsed : {};
+    if (typeof parsed !== 'object' || !parsed) return { pinned: false };
+    // Pin is intentionally session-only. An old saved `pinned: true` should not
+    // make the assistant permanently sit above every window on the next launch.
+    return { ...parsed, pinned: false };
   } catch {
-    return {};
+    return { pinned: false };
   }
 }
 
