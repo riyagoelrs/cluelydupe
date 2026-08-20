@@ -1,101 +1,161 @@
 # cluely
 
-A desktop copilot for live calls. It listens to **both** sides — your microphone and
-the audio your machine is playing — transcribes each stream separately, and when the
-other person asks something, an answer appears in a floating overlay before they've
-finished the sentence.
+A desktop copilot for live calls. It listens to your microphone and the audio your computer is playing, transcribes the two streams separately, detects questions from the other side, retrieves relevant prep material, and streams an answer into a floating overlay.
 
-It runs **fully local by default**: Whisper for transcription, Ollama for answers. No
-API key, no account, no per-call cost, and nothing — not your call, not your prep
-material — leaves your machine.
+The default stack is local: whisper.cpp for speech-to-text, Ollama for answers and retrieval embeddings. Your call audio and prep material do not need to leave your machine.
 
-```
+```text
  mic ─────────────► whisper.cpp (ME)   ─┐
                                         ├─► transcript ─► question? ─┐
  system loopback ─► whisper.cpp (THEM) ─┘                            │
                                                                      ▼
-                      materials/ ──► retrieve relevant passages ──► Ollama ──► overlay
+                     Files / Notes ──► retrieve context ──► Ollama ──► overlay
 ```
 
-Two independent transcription sessions is what makes this work: speaker attribution
-comes from *which device the audio came from*, not from diarization, so it is exact
-and it is free.
+## What the app now handles for you
+
+The overlay has an in-app **Setup** panel, **Notes** editor, and **Files** library. You should not need Cursor just to prepare for a call.
+
+- **Setup** checks the Whisper binary/model, macOS Screen Recording and Microphone permissions, Ollama, and the answer/embed/vision models.
+- **Whisper model** can be selected from disk or downloaded as `ggml-base.en.bin` from Setup. The app also auto-detects common model locations such as `~/ggml-base.en.bin`.
+- **Notes** edits the always-included context inside the overlay instead of opening `context.md` in your default editor.
+- **Files** lets you select prep material from the app, creates local text copies for indexing, and shows the indexed library. Text/Markdown work everywhere; on macOS Word/RTF-family documents are converted locally and PDFs are extracted locally when possible.
+- **Movement** has a dedicated `⋮⋮ drag` area so the overlay is easy to reposition.
+- **Resize** targets are larger: use the right edge, bottom edge, or visible bottom-right corner grip.
+- **Ghost** has a recovery hotkey: `⌘/Ctrl+Shift+G` toggles click-through even when the overlay itself cannot be clicked.
+- **Reset window** in Setup restores the overlay to a reachable default size/position.
 
 ## Setup
 
-Requires Node 20+. On macOS you also want Apple Silicon with 16GB — a local model
-generating answers while Whisper transcribes two streams is a real workload.
+Requires Node 20+. On macOS, Apple Silicon with 16GB+ is recommended because local answer generation and two transcription streams are a real workload.
 
-**1. Transcription**
+### 1. Install the local engines
 
 ```bash
 brew install whisper-cpp
-# base.en is the sweet spot for live calls; small.en is sharper but ~2x slower
-curl -L -o ~/ggml-base.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 ```
 
-**2. Answers** — install [Ollama](https://ollama.com/download), then:
+Install Ollama, launch it, then pull the default models:
 
 ```bash
 ollama pull llama3.1:8b       # answers
-ollama pull nomic-embed-text  # semantic search over your materials
-ollama pull llava:7b          # optional: reading your screen
+ollama pull nomic-embed-text  # semantic retrieval over your files
+ollama pull llava:7b          # optional: screen questions
 ```
 
-**3. The app**
+You no longer need to manually download the Whisper model in Terminal. Open **Setup → Download base.en** after starting the app. If you already have a ggml model, use **Setup → Choose…** instead.
+
+### 2. Install and start the app
 
 ```bash
 git clone https://github.com/riyagoelrs/cluelydupe.git
 cd cluelydupe
 npm install
-cp .env.example .env          # set WHISPER_MODEL to the path from step 1
-npm run doctor                # checks every piece and names what's missing
 npm start
 ```
 
-**Run `npm run doctor` first, and again whenever something breaks.** It checks the
-whisper binary and its flags, the model file, the Ollama daemon and each model you've
-pulled, your context and materials, and macOS's system-audio requirements — printing
-the exact command to fix anything that's wrong:
+`.env` is optional for overrides. The app can configure the Whisper model through Setup and persists that choice in its per-user configuration.
 
-```
-✓ Node               v22.18.0
-✓ whisper binary     whisper-cli
-✗ whisper model      not found at ~/ggml-base.en.bin
-                     → curl -L -o ~/ggml-base.en.bin https://huggingface.co/...
-✓ Ollama             http://127.0.0.1:11434
-✗ answer model       "llama3.1:8b" not pulled
-                     → ollama pull llama3.1:8b
-! materials          folder is empty — nothing to retrieve from
-```
-
-Then rehearse before you rely on it:
+For command-line diagnostics you can still use:
 
 ```bash
-cp rehearsal.example.txt rehearsal.txt   # put your real questions in
-npm run rehearse
+npm run doctor
+npm run typecheck
+npm test
+npm run check:resize
 ```
 
-This runs your questions through the same prompt, the same materials retrieval and
-the same model the app uses, and reports what actually matters — how long until the
-first word appears, and whether the answer is short enough to say out loud:
+### 3. macOS permissions
 
+Capturing the other person requires access to the audio your Mac is playing. On macOS 14.4+ that goes through ScreenCaptureKit and therefore requires **Screen Recording / Screen & System Audio Recording** permission.
+
+Open **Setup** and use the **Open Settings** buttons for:
+
+- Screen Recording / Screen & System Audio Recording
+- Microphone
+
+After granting **Screen Recording**, **fully quit cluely and reopen it**. macOS does not grant that capability to an already-running Electron process. A bare Electron `Failed to get sources` error is usually this permission problem.
+
+If system loopback is still silent on an older macOS version, use BlackHole and set `SYSTEM_AUDIO_DEVICE=BlackHole`.
+
+## Preparing answers
+
+### Notes
+
+Click **Notes** and keep the always-relevant facts here: who you are, the role or meeting, resume facts, deal details, stories, numbers you blank on, and answer-style constraints. Save inside the overlay. The file is re-read for every answer, so edits take effect during the call.
+
+### Files
+
+Click **Files → Add files…** and select your interview prep, technical notes, deal sheets, product docs, past call notes, or other reference material.
+
+The answer model is not being fine-tuned or retrained. This is retrieval-augmented generation (RAG): the app indexes your local material, finds the passages that match each incoming question, and puts only those passages in front of the answer model.
+
+The index itself consumes `.md`, `.markdown`, `.txt`, and `.text` files. The Files importer converts supported source documents into local `.txt` copies before indexing:
+
+- `.txt`, `.md`, `.csv`, `.json`, `.yaml`: imported directly
+- `.doc`, `.docx`, `.rtf`, `.odt` on macOS: converted locally with `textutil`
+- `.pdf`: tries local `pdftotext`; on macOS it also tries Spotlight metadata extraction
+
+For the most reliable PDF extraction on macOS:
+
+```bash
+brew install poppler
 ```
-1. Tell me about the migration you led.
-   first token 0.9s · total 2.4s · 41 words
-   - Moved 40M rows with 12 minutes of downtime
-   - Rollback was a logical replication slot held open for a week
 
-median first token 0.9s · median total 2.4s · median 41 words
-Fast enough for a live call.
-```
+Nothing is uploaded by the Files importer. With `ANSWER_PROVIDER=ollama`, retrieval and answering stay local.
 
-Compare models without editing anything: `npm run rehearse -- --model llama3.2:3b`.
-Time-to-first-token is the number to watch — answers stream, so you start reading
-before they finish. Over ~3s and the moment is gone.
+## Using it on a call
 
-`npm test` runs the logic tests — no Whisper, Ollama, or GPU required.
+Hit **Listen**, then join the call normally. The transcript strip shows `ME` and `THEM` separately. Question-shaped final utterances from `THEM` trigger answers automatically when **Auto** is on.
+
+| Hotkey | Action |
+|---|---|
+| `⌘/Ctrl+Shift+L` | Start / stop listening |
+| `⌘/Ctrl+Shift+Space` | Answer whatever they just said now |
+| `⌘/Ctrl+Shift+S` | Answer using the current screen |
+| `⌘/Ctrl+Shift+G` | Toggle Ghost / click-through |
+| `⌘/Ctrl+Shift+H` | Hide / show the overlay |
+| `⌘/Ctrl+Shift+K` | Clear transcript and answers |
+| `⌘/Ctrl+Shift+P` | Pin / unpin the overlay |
+| `⌘/Ctrl+Shift+←/→` | Nudge the overlay sideways |
+| `⌘/Ctrl+Shift+Q` | Quit |
+
+### Move and resize
+
+Drag the dedicated **`⋮⋮ drag`** area at the top to move the overlay. Buttons and status chips remain clickable rather than becoming accidental drag targets.
+
+Resize from the **right edge**, **bottom edge**, or the larger visible **bottom-right corner grip**. Size and position are remembered between runs. If a saved position becomes awkward after a monitor change, open **Setup → Reset window**.
+
+### Ghost
+
+Ghost makes the overlay click-through so mouse input reaches the app underneath it. Because click-through necessarily makes the overlay difficult to click, use **`⌘/Ctrl+Shift+G`** as the reliable way to turn Ghost back off.
+
+### Pin
+
+Pinned mode floats above normal and full-screen call windows and follows you across workspaces. Turn Pin off when you want the overlay to behave like a normal window that other apps can cover.
+
+### Screen
+
+`⌘/Ctrl+Shift+S` temporarily hides the overlay, captures the primary display, and sends the image to `OLLAMA_VISION_MODEL`. This is useful when the question depends on something visual that audio alone cannot describe. Vision is usually slower than text-only answering.
+
+## Configuration
+
+The common setup is now handled in the UI. `.env` remains available for advanced overrides.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `STT_PROVIDER` | `whisper` | Set `deepgram` for cloud transcription |
+| `ANSWER_PROVIDER` | `ollama` | Set `claude` for cloud answers |
+| `WHISPER_MODEL` | auto-detect / Setup | Optional explicit ggml model path |
+| `WHISPER_BINARY` | `whisper-cli` | whisper.cpp CLI path/name |
+| `OLLAMA_MODEL` | `llama3.1:8b` | Text answer model |
+| `OLLAMA_VISION_MODEL` | `llava:7b` | Screen-question model |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Semantic retrieval model; blank disables embeddings |
+| `MATERIALS_TOP_K` | `4` | Number of matching passages placed in the prompt |
+| `ANSWER_MAX_TOKENS` | `1200` | Maximum answer generation length |
+| `AUTO_ANSWER` | `true` | Automatically answer detected questions |
+| `SYSTEM_AUDIO_DEVICE` | empty | Optional virtual-cable/monitor source |
+| `CONTENT_PROTECTION` | `true` | Ask the OS to exclude the overlay from captures where supported |
 
 ### Model choices
 
@@ -104,216 +164,68 @@ before they finish. Over ~3s and the moment is gone.
 | Whisper | `ggml-tiny.en.bin` | **`ggml-base.en.bin`** | `ggml-small.en.bin` |
 | Ollama | `llama3.2:3b` | **`llama3.1:8b`** | `qwen2.5:14b` |
 
-If answers land after the moment has passed, drop a tier before you change anything
-else. On a live call, speed *is* quality.
+For live calls, time-to-first-token matters more than benchmark quality. If answers routinely arrive after the moment has passed, drop a model tier before adding more prompt complexity.
 
-## Your materials
+## Rehearsal
 
-Drop `.md` and `.txt` files into `materials/` — interview prep, product docs, past
-call transcripts, spec notes, whatever you want the copilot to know. Click **Docs** in
-the title bar to open the folder, and the **DOCS** chip to re-index after editing.
+Before an important call, put realistic questions in `rehearsal.txt` and run:
 
-Only the passages that match the question are sent to the model, so the folder can be
-far larger than any prompt. Retrieval is keyword-first and always works; when the
-embedding model is available results are also ranked semantically, so a question
-phrased differently from your notes still finds them.
-
-`context.md` is the other half: a single page of always-included facts (who you are,
-what this call is, the numbers you blank on). Both are re-read on every answer, so you
-can edit either one mid-call.
-
-Nothing here is uploaded. With the default providers, your materials are read from
-disk, matched locally, and handed to a model running on your own machine.
-
-## Using it
-
-Hit **Listen**, then join your call as normal. Question-shaped things the other side
-says get answered automatically; everything else just scrolls past in the transcript
-strip at the bottom.
-
-| Hotkey | Does |
-|---|---|
-| `⌘/Ctrl+Shift+L` | Start / stop listening |
-| `⌘/Ctrl+Shift+Space` | Answer whatever they just said, right now |
-| `⌘/Ctrl+Shift+S` | Answer using what's on screen right now |
-| `⌘/Ctrl+Shift+H` | Hide / show the overlay |
-| `⌘/Ctrl+Shift+K` | Clear transcript and answers |
-| `⌘/Ctrl+Shift+Q` | Quit |
-| `⌘/Ctrl+Shift+G` | Toggle Ghost (click-through) — the way out when it's on |
-| `⌘/Ctrl+Shift+P` | Pin / unpin (float above everything, or sit behind windows) |
-| `⌘/Ctrl+Shift+P` | Pin / unpin (float above everything, or let windows cover it) |
-| `⌘/Ctrl+Shift+←/→` | Nudge the overlay sideways |
-
-**Screen** (`⌘/Ctrl+Shift+S`) is for questions the audio can't carry — "how would you
-fix this?" over a code editor. It grabs the screen, hides the overlay first so its own
-answers aren't in the shot, and routes to `OLLAMA_VISION_MODEL` instead of the text
-model. Expect it to be slower than a spoken answer: a vision model is a bigger load,
-and Ollama may have to swap models in.
-
-**If it's always in your face**, that's **Pin**. Pinned, it floats above everything —
-including full-screen Zoom, and on every space — which is what you want mid-call and
-nothing else. Click **Pin** off and it becomes an ordinary window that sits behind
-whatever you focus. `⌘/Ctrl+Shift+P` toggles it, and the choice is remembered.
-
-**To move it**, drag the title bar. **To resize**, drag the **right edge, bottom edge,
-or the corner grip** — the whole
-edge is draggable, not just the corner. A frameless transparent window gets no resize
-handles from the OS, so these are the only way. Size and position are remembered
-between runs; minimum is 320×220.
-
-The window is frameless and has no menu bar, so **—** hides it (bring it back with
-`⌘/Ctrl+Shift+H`) and **✕** quits.
-
-Title bar: **Screen** reads your screen, **Auto** toggles automatic answering, **Ghost** makes the overlay
-click-through — which also makes the Ghost button itself unclickable, so
-`⌘/Ctrl+Shift+G` is how you turn it back off, **Notes** opens
-`context.md`, **Docs** opens `materials/`.
-
-The overlay sets `setContentProtection(true)`, so it stays out of screen shares and
-screenshots. Treat that as a courtesy, not a guarantee: on macOS 15.4+ some modern
-capture APIs can see through it, and no window flag has ever stopped a phone camera.
-
-## System audio
-
-Capturing the *other* person means capturing what your machine plays:
-
-- **Windows** — works out of the box via `getDisplayMedia` loopback.
-- **macOS** — needs **macOS 14.4+** and Screen Recording permission (System Settings →
-  Privacy & Security → Screen Recording). Loopback goes through ScreenCaptureKit,
-  which Chromium keeps behind two feature flags; the app enables
-  `MacLoopbackAudioForScreenShare` and `MacSckSystemAudioLoopbackOverride` at startup
-  so you don't have to. Below 14.4, or if loopback is silent, install
-  [BlackHole](https://github.com/ExistentialAudio/BlackHole), route your call app
-  through a Multi-Output Device that includes it, and set `SYSTEM_AUDIO_DEVICE=BlackHole`.
-- **Linux** — use a PulseAudio/PipeWire monitor source: `SYSTEM_AUDIO_DEVICE=Monitor of`.
-
-On macOS, "Failed to get sources" means the **Screen Recording** permission — System
-Settings → Privacy & Security → Screen Recording, enable the app, then **quit and
-reopen it**. macOS does not apply that permission to an already-running process, which
-is why granting it and carrying on looks like it didn't work.
-
-If the **THEM** chip never turns green, fix that before anything else — hover it for
-the underlying error. Test on a YouTube video before you test on a real call.
-
-Your mic is captured with echo cancellation on, but **use headphones anyway**: it is
-more reliable than any AEC at keeping their voice out of your mic stream.
-
-## Configuration
-
-All in `.env`; `.env.example` is the annotated list.
-
-| Variable | Default | Why you'd change it |
-|---|---|---|
-| `STT_PROVIDER` | `whisper` | `deepgram` for cloud transcription (needs a key) |
-| `ANSWER_PROVIDER` | `ollama` | `claude` for cloud answers (needs a key) |
-| `WHISPER_MODEL` | — | **Required.** Path to your ggml model file |
-| `OLLAMA_MODEL` | `llama3.1:8b` | Trade answer quality against latency |
-| `OLLAMA_VISION_MODEL` | `llava:7b` | Only used for screen questions |
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Blank disables semantic search; keyword search still runs |
-| `MATERIALS_TOP_K` | `4` | More passages = better grounding, slower answers |
-| `ANSWER_MAX_TOKENS` | `1200` | Lower it if a small model rambles |
-| `AUTO_ANSWER` | `true` | `false` makes every answer manual |
-| `SYSTEM_AUDIO_DEVICE` | *(empty)* | Virtual-cable name, when loopback isn't available |
-
-Both the transcription and answer layers sit behind interfaces (`SttProvider`,
-`AnswerProvider`), so the cloud paths are one file each and swapping in another engine
-means implementing an interface, not rewriting the app.
-
-## What has actually been tested
-
-Being straight about this, because "it compiles" is not the same as "it works":
-
-**Verified end to end** — the build, both typecheck passes, and 29 tests. The utterance
-segmenter is tested against a real 11-second human recording (`test/fixtures/`), not
-just synthetic tones: it finds 4 utterances, keeps 96% of the audio, and a noisy-but-
-silent room produces zero. The Ollama protocol is tested against a real HTTP server,
-the whisper subprocess against a stub binary, and every whisper CLI flag the app passes
-was checked against the real `whisper-cli --help`. Screen capture is verified in a real
-Electron process and returns a valid PNG.
-
-If a local model rambles or hedges, the last line of `SYSTEM_PROMPT` in
-`src/main/prompt.ts` is the lever — small models follow a restated constraint at the
-end better than one buried in a list. `npm run rehearse` is how you tell whether an
-edit helped.
-
-**Not verified** — live audio devices, and inference with real model weights. Neither
-can run in a headless CI container. The first time real speech goes in and a real model
-answers will be on your machine, so run `npm run doctor` first and test against a
-YouTube video before a call that matters.
-
-## How it's put together
-
+```bash
+cp rehearsal.example.txt rehearsal.txt
+npm run rehearse
 ```
-src/main/          Electron main — audio routing, transcription, answers
-  main.ts            wiring: IPC, hotkeys, the auto-answer decision
+
+This uses the same prompt, retrieval path, and answer model as the app and reports time to first token, total generation time, and answer length.
+
+You can compare models without changing config:
+
+```bash
+npm run rehearse -- --model llama3.2:3b
+```
+
+## Architecture
+
+```text
+src/main/
+  main.ts              live audio/answer orchestration, hotkeys, IPC
+  operator-ui.ts       Setup, Notes, file-import and reset-window controller
   stt/
-    whisper.ts       local transcription: whisper.cpp as a subprocess
-    vad.ts           energy-gated utterance segmenter + WAV encoding
-    deepgram.ts      cloud alternative behind the same interface
+    whisper.ts         local transcription through whisper.cpp subprocesses
+    vad.ts             utterance segmentation + WAV encoding
+    deepgram.ts        cloud STT alternative
   answer/
-    ollama.ts        local answers, streamed over NDJSON
-    claude.ts        cloud alternative behind the same interface
-  materials.ts       indexes materials/, retrieves per question
-  prompt.ts          the prompt, shared by the app and `npm run rehearse`
-  screen.ts          still capture of the primary display, for screen questions
-  transcript.ts      rolling record, one in-flight partial per speaker
-  question-detector.ts  local heuristic: "did they just ask me something?"
-  answer-engine.ts   prompt construction, cancellation, streaming
-  windows.ts         overlay + hidden capture window, loopback media handler
+    ollama.ts          local streaming answers
+    claude.ts          cloud answer alternative
+  materials.ts         local chunking, keyword retrieval, semantic ranking
+  prompt.ts            answer prompt
+  screen.ts            still-screen capture
+  transcript.ts        rolling ME/THEM transcript
+  question-detector.ts local question heuristic
+  answer-engine.ts     prompt construction, retrieval and streaming
+  windows.ts           overlay + hidden audio-capture window
 src/renderer/
-  capture.ts         the audio graph (getUserMedia + getDisplayMedia -> 16 kHz PCM)
-  overlay.*          the floating UI
-src/preload/       the only bridge between the two; context isolation stays on
+  capture.ts           browser audio graph → 16 kHz PCM
+  overlay.*            live overlay/transcript UI
+  panels.ts            in-app Setup, Notes and Files UI
+src/preload/
+  overlay-preload.ts   isolated renderer/main bridge
 ```
 
-Audio never touches disk except as a short-lived temp WAV per utterance, deleted as
-soon as Whisper has read it. Transcripts are held in memory and die with the process.
+Whisper runs as a subprocess rather than an Electron native addon, avoiding Electron ABI rebuild problems. Audio is written only as short-lived temporary WAV clips for Whisper and deleted after transcription. Transcripts are held in memory and disappear with the process.
 
-Two design notes worth knowing:
+## Testing notes
 
-**Whisper runs as a subprocess, not a native module.** Native addons must be rebuilt
-against Electron's ABI on every Electron bump, and a mismatch fails at runtime in the
-user's hands. A subprocess is immune to that, and costs a few milliseconds of spawn
-time against seconds of inference.
+The repository includes logic/audio tests, a smoke test, and a real Electron resize-drag check:
 
-**Whisper transcribes clips, not streams,** so `vad.ts` decides where an utterance
-starts and stops — an energy gate with an adaptive noise floor, pre-roll so the first
-consonant survives, and a hard cut at 20s so a monologue still produces answers.
+```bash
+npm run typecheck
+npm test
+npm run smoke
+npm run check:resize
+```
 
-## Prior art
+A headless environment cannot prove that your physical microphone, macOS Screen Recording entitlement, system loopback, and local model weights work together on your specific Mac. After the code checks pass, test **THEM** against a YouTube video before relying on it in a real call.
 
-This problem has been solved several times over, and the versions worth reading differ
-in ways that shaped the choices here:
+## Before using it in a real meeting or interview
 
-- **[pickle-com/glass](https://github.com/pickle-com/glass)** — the original open-source
-  build of this idea; the reference most later projects fork from.
-- **[cue](https://github.com/Blueturboguy07/cue)** — macOS-focused, and the source of the
-  ScreenCaptureKit flag detail above. Also the most honest about where invisibility stops
-  working.
-- **[Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant)** —
-  the maximal version: a Rust native module for capture, local models, local RAG, and a
-  long list of BYOK providers. No Linux support.
-- **[Open-Cluely](https://github.com/shubhamshnd/Open-Cluely)** — Electron + AssemblyAI +
-  Gemini, Windows-first. Every answer is a button press.
-- **[free-cluely](https://github.com/Prat011/free-cluely)** — Gemini or Ollama, and the
-  source of the screenshot-analysis idea now wired in here.
-
-Where this one differs: answers fire automatically off a local question heuristic
-rather than a hotkey, speaker attribution comes from two independent transcription
-sessions rather than diarization, and the default configuration has no cloud in it.
-
-**Not built yet:** a settings UI (config is `.env` only), packaged installers, and
-meeting-notes/recap output. All are in the projects above if you want them.
-
-## Before you use this on a real call
-
-Running locally removes the third parties, but not the law. Recording a conversation
-you are part of is legal in much of the world and illegal without the other side's
-consent in plenty of it — all-party-consent jurisdictions include California, Florida,
-Illinois, Pennsylvania, and much of the EU. That applies to a recording made entirely
-on your own laptop. Say something at the top of the call; "I've got an AI assistant
-taking notes" costs three seconds and solves the whole problem.
-
-Some contexts have their own rules regardless of the law — proctored exams and many
-technical interviews prohibit assistance outright. Being undetectable is not the same
-as being permitted.
+Local processing does not remove consent, workplace, interview, or recording-law requirements. Some jurisdictions require all participants to consent to recording, and some interviews or assessments prohibit outside assistance regardless of whether the tool is visible. Use the assistant only where its use is permitted and disclose recording/AI assistance when required.
