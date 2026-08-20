@@ -1,6 +1,7 @@
 :root {
-  --bg: rgba(16, 17, 21, 0.82);
+  --bg: rgba(16, 17, 21, 0.86);
   --bg-solid: #101115;
+  --panel: rgba(24, 26, 33, 0.96);
   --line: rgba(255, 255, 255, 0.09);
   --text: #eceef2;
   --muted: #8b90a0;
@@ -10,6 +11,7 @@
   --accent: #7c8cff;
   --live: #ff5f57;
   --good: #4ec98a;
+  --warn: #d8b84a;
   --bad: #ff6b6b;
 }
 
@@ -28,7 +30,10 @@ html, body {
   user-select: none;
 }
 
+button, textarea { font-family: inherit; }
+
 .shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -39,24 +44,35 @@ html, body {
   overflow: hidden;
 }
 
-/* ---------------------------------------------------------------- title bar */
-
 .bar {
-  display: flex;
-  align-items: center;
-  gap: 8px 10px;
-  /* Wrap rather than clip: the window is resizable and the button count grows,
-     so any fixed width is a bug waiting to happen. */
-  flex-wrap: wrap;
-  padding: 9px 9px 9px 11px;
+  flex: none;
+  padding: 7px 9px 8px;
   border-bottom: 1px solid var(--line);
-  /* Moving is handled in JS, not by -webkit-app-region: drag — see main.ts. */
-  cursor: grab;
+  -webkit-app-region: no-drag;
 }
 
-.bar:active { cursor: grabbing; }
+.topline {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 28px;
+}
 
-.brand { display: flex; align-items: center; gap: 7px; }
+.drag-surface {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px;
+  border-radius: 7px;
+  -webkit-app-region: no-drag;
+  cursor: grab;
+}
+.drag-surface:active { cursor: grabbing; }
+.drag-surface:hover { background: rgba(255, 255, 255, 0.035); }
+
+.brand { display: flex; align-items: center; gap: 7px; flex: none; }
 
 .name {
   font-size: 12px;
@@ -72,7 +88,7 @@ html, body {
   background: var(--dim);
 }
 .rec[data-state="listening"] { background: var(--live); animation: pulse 1.8s ease-in-out infinite; }
-.rec[data-state="starting"] { background: #d8b84a; animation: pulse 0.9s ease-in-out infinite; }
+.rec[data-state="starting"] { background: var(--warn); animation: pulse 0.9s ease-in-out infinite; }
 .rec[data-state="error"] { background: var(--bad); }
 
 @keyframes pulse {
@@ -80,7 +96,7 @@ html, body {
   50% { opacity: 0.65; box-shadow: 0 0 0 5px rgba(255, 95, 87, 0); }
 }
 
-.chips { display: flex; gap: 3px; margin-right: auto; min-width: 0; }
+.chips { display: flex; gap: 3px; min-width: 0; flex: none; }
 
 .chip {
   font-size: 9px;
@@ -92,56 +108,85 @@ html, body {
   border: 1px solid var(--line);
 }
 .chip[data-live="true"] { color: var(--good); border-color: rgba(78, 201, 138, 0.35); }
-#chip-docs { cursor: pointer; }
-#chip-docs:hover { color: var(--text); }
 .chip[data-live="error"] { color: var(--bad); border-color: rgba(255, 107, 107, 0.35); }
 
-.actions {
-  display: flex;
-  gap: 3px;
-  flex: none;
+.drag-hint {
+  min-width: 46px;
   margin-left: auto;
+  text-align: right;
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 0.04em;
 }
 
+.window-actions, .actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  -webkit-app-region: no-drag;
+}
+.window-actions { flex: none; }
+
+.actions {
+  margin-top: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.actions::-webkit-scrollbar { display: none; }
+
 .btn {
-  cursor: pointer;
+  flex: none;
   font: inherit;
   font-size: 10.5px;
-  padding: 3px 6px;
+  line-height: 1.2;
+  padding: 4px 7px;
   border-radius: 6px;
   white-space: nowrap;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 .btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--text); }
-.btn.icon { padding: 3px 7px; font-size: 12px; line-height: 1; color: var(--dim); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.icon { padding: 4px 7px; font-size: 12px; line-height: 1; color: var(--dim); }
 .btn.icon:hover { color: var(--text); }
 .btn.danger:hover { color: #fff; background: rgba(255, 95, 87, 0.55); border-color: rgba(255, 95, 87, 0.6); }
-
 .btn[data-on="true"] { color: var(--text); border-color: rgba(124, 140, 255, 0.5); background: rgba(124, 140, 255, 0.16); }
+.btn[data-issue="true"] { color: #ffd8a8; border-color: rgba(255, 176, 87, 0.45); background: rgba(255, 176, 87, 0.10); }
 .btn.primary[data-on="true"] { border-color: rgba(255, 95, 87, 0.5); background: rgba(255, 95, 87, 0.16); }
+.btn.primary-action { color: var(--text); border-color: rgba(124, 140, 255, 0.5); background: rgba(124, 140, 255, 0.16); }
+.btn.primary-action:hover { background: rgba(124, 140, 255, 0.28); }
 
 .notice {
+  width: 100%;
+  flex: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   padding: 7px 12px;
+  text-align: left;
   font-size: 11.5px;
   color: #ffd8a8;
   background: rgba(255, 176, 87, 0.12);
-  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
-
-/* ----------------------------------------------------------------- answers */
+.notice:hover { background: rgba(255, 176, 87, 0.18); }
 
 .answers {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  -webkit-app-region: no-drag;
   user-select: text;
 }
+.answers[hidden] { display: none; }
 .answers::-webkit-scrollbar { width: 8px; }
 .answers::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
 
@@ -192,11 +237,125 @@ html, body {
 .empty-body { font-size: 11.5px; line-height: 1.7; margin: 0; }
 .empty-body b { color: var(--muted); font-weight: 600; }
 
-/* -------------------------------------------------------------- transcript */
+.panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+.panel[hidden] { display: none; }
+
+.panel-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-title { font-size: 12px; font-weight: 650; color: var(--text); }
+.panel-subtitle { margin-top: 2px; font-size: 10.5px; color: var(--dim); }
+
+.panel-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+}
+.panel-view[hidden] { display: none; }
+
+.editor {
+  width: 100%;
+  height: calc(100% - 42px);
+  min-height: 180px;
+  resize: none;
+  outline: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  user-select: text;
+}
+.editor:focus { border-color: rgba(124, 140, 255, 0.55); }
+
+.panel-footer, .panel-toolbar, .setup-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-footer { justify-content: space-between; padding-top: 8px; }
+.panel-toolbar { padding-bottom: 8px; flex-wrap: wrap; }
+.setup-footer { justify-content: flex-end; padding-top: 10px; }
+
+.feedback { color: var(--dim); font-size: 10.5px; line-height: 1.4; }
+.feedback[data-kind="ok"] { color: var(--good); }
+.feedback[data-kind="error"] { color: var(--bad); }
+.feedback.block { min-height: 16px; margin: 2px 0 7px; white-space: pre-wrap; }
+
+.file-help {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--dim);
+  margin-bottom: 9px;
+}
+.file-list { display: flex; flex-direction: column; gap: 4px; }
+.file-item, .file-empty {
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.file-item::before { content: "✓ "; color: var(--good); }
+.file-empty { color: var(--dim); text-align: center; padding: 18px 10px; }
+
+.setup-list { display: flex; flex-direction: column; gap: 7px; }
+.setup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.setup-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.setup-dot[data-state="ok"] { background: var(--good); }
+.setup-dot[data-state="warn"] { background: var(--warn); }
+.setup-dot[data-state="bad"] { background: var(--bad); }
+.setup-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setup-copy b { font-size: 11px; font-weight: 650; color: var(--text); }
+.setup-copy span { font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+.setup-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 
 .live {
+  flex: none;
   border-top: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.22);
+  -webkit-app-region: no-drag;
 }
 
 .transcript {
@@ -218,19 +377,16 @@ html, body {
 .line[data-final="false"] { opacity: 0.55; font-style: italic; }
 .line .said { overflow-wrap: anywhere; }
 
-/* ------------------------------------------------------------------- resize */
-
-/* A frameless transparent window gets no OS resize handles, so these are it.
-   Full edges rather than only a corner — a 16px target is hard to hit. */
 .grip-edge {
   position: fixed;
-  z-index: 10;
+  -webkit-app-region: no-drag;
+  z-index: 50;
 }
 
 .grip-right {
   top: 0;
   right: 0;
-  width: 7px;
+  width: 12px;
   height: 100%;
   cursor: ew-resize;
 }
@@ -238,22 +394,24 @@ html, body {
 .grip-bottom {
   left: 0;
   bottom: 0;
-  height: 7px;
+  height: 12px;
   width: 100%;
   cursor: ns-resize;
 }
 
 .grip-corner {
-  right: 0;
-  bottom: 0;
-  width: 18px;
-  height: 18px;
+  right: 2px;
+  bottom: 2px;
+  width: 28px;
+  height: 28px;
   cursor: nwse-resize;
+  border-radius: 0 0 10px 0;
   background:
-    linear-gradient(135deg, transparent 42%, var(--muted) 42%, var(--muted) 55%, transparent 55%,
-      transparent 66%, var(--muted) 66%, var(--muted) 79%, transparent 79%);
+    linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 50%, transparent 50%,
+      transparent 61%, var(--muted) 61%, var(--muted) 66%, transparent 66%,
+      transparent 77%, var(--muted) 77%, var(--muted) 82%, transparent 82%);
   opacity: 0.8;
 }
 
-.grip-edge:hover { background-color: rgba(124, 140, 255, 0.25); }
+.grip-edge:hover { background-color: rgba(124, 140, 255, 0.18); }
 .grip-corner:hover { opacity: 1; }
