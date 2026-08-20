@@ -5,36 +5,31 @@
 <body>
   <div class="shell">
     <header class="bar">
-      <div class="topline">
-        <div class="drag-surface" title="Drag here to move the assistant">
-          <div class="brand">
-            <span id="rec" class="rec" data-state="idle"></span>
-            <span class="name">cluely</span>
-          </div>
-          <div class="chips">
-            <span class="chip" id="chip-mic" title="Microphone">ME</span>
-            <span class="chip" id="chip-sys" title="System audio">THEM</span>
-            <span class="chip" id="chip-docs" title="Indexed materials">DOCS</span>
-          </div>
-          <span class="drag-hint">⋮⋮ drag</span>
-        </div>
-        <div class="window-actions">
-          <button id="btn-pin" class="btn" title="Float above everything (⌘/Ctrl+Shift+P)">Pin</button>
-          <button id="btn-hide" class="btn icon" title="Hide — bring it back with ⌘/Ctrl+Shift+H">—</button>
-          <button id="btn-quit" class="btn icon danger" title="Quit (⌘/Ctrl+Shift+Q)">✕</button>
-        </div>
+      <div class="drag-surface" title="Drag to move">
+        <span id="rec" class="rec" data-state="idle"></span>
+        <span class="name">cluely</span>
+        <span class="chip" id="chip-mic" title="Microphone">ME</span>
+        <span class="chip" id="chip-sys" title="Call audio">THEM</span>
+        <span class="chip docs-chip" id="chip-docs" title="Prep materials">DOCS</span>
       </div>
-      <div class="actions">
-        <button id="btn-listen" class="btn primary" title="⌘/Ctrl+Shift+L">Listen</button>
-        <button id="btn-auto" class="btn" title="Answer questions automatically">Auto</button>
-        <button id="btn-screen" class="btn" title="Answer using what's on screen (⌘/Ctrl+Shift+S)">Screen</button>
-        <button id="btn-ghost" class="btn" title="Let clicks pass through the overlay (⌘/Ctrl+Shift+G)">Ghost</button>
-        <button id="btn-context" class="btn" title="Edit always-on answer context inside the app">Notes</button>
-        <button id="btn-materials" class="btn" title="Add and manage prep files">Files</button>
-        <button id="btn-setup" class="btn" title="Check Whisper, Ollama, and macOS permissions">Setup</button>
-        <button id="btn-clear" class="btn" title="⌘/Ctrl+Shift+K">Clear</button>
+      <div class="primary-actions">
+        <button id="btn-listen" class="btn listen" title="⌘/Ctrl+Shift+L">Listen</button>
+        <button id="btn-more" class="btn icon" title="More controls">•••</button>
+        <button id="btn-hide" class="btn icon" title="Hide — ⌘/Ctrl+Shift+H">—</button>
+        <button id="btn-quit" class="btn icon danger" title="Quit — ⌘/Ctrl+Shift+Q">✕</button>
       </div>
     </header>
+
+    <div id="more-menu" class="more-menu" hidden>
+      <button id="btn-auto" class="btn" title="Answer questions automatically">Auto</button>
+      <button id="btn-context" class="btn" title="Edit always-on context">Notes</button>
+      <button id="btn-materials" class="btn" title="Add prep files">Files</button>
+      <button id="btn-setup" class="btn" title="Audio/model setup">Setup</button>
+      <button id="btn-screen" class="btn" title="Answer using the screen — ⌘/Ctrl+Shift+S">Screen</button>
+      <button id="btn-ghost" class="btn" title="Click-through — ⌘/Ctrl+Shift+G">Ghost</button>
+      <button id="btn-pin" class="btn" title="Float above other windows — ⌘/Ctrl+Shift+P">Pin</button>
+      <button id="btn-clear" class="btn" title="Clear answers — ⌘/Ctrl+Shift+K">Clear</button>
+    </div>
 
     <button id="notice" class="notice" hidden></button>
 
@@ -48,7 +43,7 @@
       </div>
 
       <div id="panel-notes" class="panel-view" hidden>
-        <textarea id="context-editor" class="editor" spellcheck="true" placeholder="Your resume facts, deal details, stories, numbers you want the assistant to remember..."></textarea>
+        <textarea id="context-editor" class="editor" spellcheck="true" placeholder="Resume facts, deal details, stories, numbers, or anything that should shape every answer..."></textarea>
         <div class="panel-footer">
           <span id="context-feedback" class="feedback"></span>
           <button id="context-save" class="btn primary-action">Save notes</button>
@@ -62,7 +57,7 @@
           <button id="materials-reveal" class="btn">Show folder</button>
         </div>
         <div id="materials-feedback" class="feedback block"></div>
-        <div class="file-help">Text/Markdown work everywhere. On macOS the importer also converts Word/RTF locally and extracts PDFs locally when possible.</div>
+        <div class="file-help">Prep files are indexed locally and retrieved only when relevant to the question.</div>
         <div id="materials-list" class="file-list"></div>
       </div>
 
@@ -82,7 +77,7 @@
           </div>
           <div class="setup-row">
             <span id="setup-screen-dot" class="setup-dot"></span>
-            <div class="setup-copy"><b>Screen + system audio</b><span id="setup-screen-text"></span></div>
+            <div class="setup-copy"><b>Call audio</b><span id="setup-screen-text"></span></div>
             <button id="setup-screen-settings" class="btn">Open Settings</button>
           </div>
           <div class="setup-row">
@@ -107,19 +102,14 @@
       </div>
     </section>
 
-    <main id="answers" class="answers">
-      <div class="empty" id="empty">
-        <p class="empty-title">Ready when you are</p>
-        <p class="empty-body">
-          Hit <b>Listen</b>, then join your call. Questions from the other side are answered here automatically.<br />
-          <b>⌘/Ctrl+Shift+Space</b> answer now · <b>⌘/Ctrl+Shift+G</b> toggle Ghost · <b>⌘/Ctrl+Shift+H</b> hide
-        </p>
-      </div>
-    </main>
+    <main id="answers" class="answers" hidden></main>
 
-    <footer class="live">
+    <!-- Transcript is kept in memory for context and debugging, but hidden from
+         the normal UI so the assistant only shows what the user needs to say. -->
+    <footer class="live" hidden>
       <div id="transcript" class="transcript"></div>
     </footer>
+
     <div id="grip-right" class="grip-edge grip-right" title="Drag to resize"></div>
     <div id="grip-bottom" class="grip-edge grip-bottom" title="Drag to resize"></div>
     <div id="grip-corner" class="grip-edge grip-corner" title="Drag to resize"></div>
