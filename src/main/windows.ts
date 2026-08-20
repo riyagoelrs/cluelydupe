@@ -5,30 +5,30 @@ import { explainCaptureFailure } from './permissions';
 import { registerOperatorUi } from './operator-ui';
 import { clampToDisplay, type WindowState } from './window-state';
 
-const OVERLAY_WIDTH = 520;
-const OVERLAY_HEIGHT = 640;
+const OVERLAY_WIDTH = 540;
+const OVERLAY_HEIGHT = 58;
 const MARGIN = 24;
-export const MIN_WIDTH = 320;
-export const MIN_HEIGHT = 220;
+export const MIN_WIDTH = 360;
+export const MIN_HEIGHT = 58;
 
 export function createOverlayWindow(cfg: Config, state: WindowState = {}): BrowserWindow {
-  // Register the self-contained setup/notes/materials controller once. Keeping
-  // it here avoids coupling those UI concerns to the live audio/answer engine.
-  registerOperatorUi(() => ipcMain.emit('ctl:reload-materials'));
+  // Setup/notes/materials share the same live config object as Whisper and the
+  // answer engine, so a model chosen in Setup is usable immediately.
+  registerOperatorUi(cfg, () => ipcMain.emit('ctl:reload-materials'));
 
   const work = screen.getPrimaryDisplay().workArea;
+  const width = Math.min(
+    Math.max(MIN_WIDTH, state.width ?? OVERLAY_WIDTH),
+    work.width - MARGIN * 2,
+  );
 
-  const defaults = {
-    width: OVERLAY_WIDTH,
-    height: Math.min(OVERLAY_HEIGHT, work.height - MARGIN * 2),
-    x: work.x + work.width - OVERLAY_WIDTH - MARGIN,
-    y: work.y + MARGIN,
-  };
+  // Always launch compact. Expanded answer/settings heights are transient UI
+  // state and should never turn the next launch back into a giant empty panel.
   const bounds = clampToDisplay({
-    width: Math.max(MIN_WIDTH, state.width ?? defaults.width),
-    height: Math.max(MIN_HEIGHT, state.height ?? defaults.height),
-    x: state.x ?? defaults.x,
-    y: state.y ?? defaults.y,
+    width,
+    height: OVERLAY_HEIGHT,
+    x: state.x ?? work.x + work.width - width - MARGIN,
+    y: state.y ?? work.y + MARGIN,
   });
 
   const win = new BrowserWindow({
@@ -99,6 +99,9 @@ export function installMediaHandlers(onProblem: (message: string) => void): void
             callback({ video: undefined, audio: undefined });
             return;
           }
+          // Electron/macOS exposes system loopback through the display capture
+          // path. The video track is incidental; the hidden capture window only
+          // forwards the audio PCM to the THEM Whisper session.
           callback({ video: screenSource, audio: 'loopback' });
         })
         .catch((err: unknown) => {
