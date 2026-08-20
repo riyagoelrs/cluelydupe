@@ -129,7 +129,7 @@ function setDot(id: string, state: 'ok' | 'warn' | 'bad'): void {
   el(id).dataset.state = state;
 }
 
-function renderSetup(state: SetupState): void {
+function renderSetup(state: SetupState): boolean {
   setDot('setup-cli-dot', state.whisperBinary.ok ? 'ok' : 'bad');
   el('setup-cli-text').textContent = state.whisperBinary.ok
     ? `Found ${state.whisperBinary.value}`
@@ -174,6 +174,7 @@ function renderSetup(state: SetupState): void {
   const critical = !state.whisperBinary.ok || !state.whisperModel.ok || !screenOk ||
     !state.ollama.running || !state.ollama.answerModel.ok;
   btnSetup.dataset.issue = String(critical);
+  return critical;
 }
 
 async function refreshSetup(): Promise<void> {
@@ -225,8 +226,8 @@ el('materials-add').addEventListener('click', async () => {
   materialsFeedback.textContent = 'Importing and indexing…';
   try {
     const result = await api.importMaterials();
-    setFeedback(materialsFeedback, formatImportResult(result), result.errors.length ? 'error' : 'ok');
     await refreshMaterials();
+    setFeedback(materialsFeedback, formatImportResult(result), result.errors.length ? 'error' : 'ok');
   } catch (err) {
     setFeedback(materialsFeedback, err, 'error');
   } finally {
@@ -287,5 +288,20 @@ api.onStatus((status: Status) => {
   if (setupProblem && !setupAutoOpened && !activePanel) {
     setupAutoOpened = true;
     queueMicrotask(() => void openPanel('setup'));
+  }
+});
+
+// overlay.js asks main for status as soon as it loads. This panel module may be
+// registered a few milliseconds later, so independently run the setup check once
+// on mount rather than relying on having observed that first status event.
+queueMicrotask(async () => {
+  try {
+    const critical = renderSetup(await api.getSetup());
+    if (critical && !setupAutoOpened && !activePanel) {
+      setupAutoOpened = true;
+      await openPanel('setup');
+    }
+  } catch {
+    // The Setup button remains available for a manual retry.
   }
 });
