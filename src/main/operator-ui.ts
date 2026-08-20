@@ -4,10 +4,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { app, BrowserWindow, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 import {
   ensureContextFile,
-  loadConfig,
   readOperatorContext,
   saveUserEnvSetting,
   writeOperatorContext,
+  type Config,
 } from './config';
 import type { MaterialImportResult, PermissionState, SetupState } from '../shared/types';
 
@@ -17,10 +17,9 @@ const DOCUMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.rtf', '.odt']);
 
 let registered = false;
 
-export function registerOperatorUi(onMaterialsChanged: () => void): void {
+export function registerOperatorUi(cfg: Config, onMaterialsChanged: () => void): void {
   if (registered) return;
   registered = true;
-  const cfg = loadConfig();
 
   ipcMain.handle('data:get-context', () => {
     ensureContextFile(cfg);
@@ -94,8 +93,8 @@ export function registerOperatorUi(onMaterialsChanged: () => void): void {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return;
     const work = screen.getPrimaryDisplay().workArea;
-    const width = Math.min(520, work.width);
-    const height = Math.min(640, Math.max(220, work.height - 48));
+    const width = Math.min(540, work.width - 48);
+    const height = 58;
     win.setBounds({ width, height, x: work.x + work.width - width - 24, y: work.y + 24 });
   });
 
