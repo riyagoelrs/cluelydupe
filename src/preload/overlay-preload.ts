@@ -29,6 +29,12 @@ const api = {
   reloadMaterials: () => ipcRenderer.send('ctl:reload-materials'),
   quit: () => ipcRenderer.send('ctl:quit'),
 
+  // Kept for compatibility with the original renderer. The new panels intercept
+  // the Notes/Files clicks before these legacy handlers fire, so normal use stays
+  // entirely in-app instead of launching Cursor/Finder.
+  openContext: () => ipcRenderer.send('ctl:open-context'),
+  openMaterials: () => ipcRenderer.send('ctl:open-materials'),
+
   getContext: (): Promise<string> => ipcRenderer.invoke('data:get-context'),
   saveContext: (text: string): Promise<boolean> => ipcRenderer.invoke('data:save-context', text),
   listMaterials: (): Promise<string[]> => ipcRenderer.invoke('data:list-materials'),
