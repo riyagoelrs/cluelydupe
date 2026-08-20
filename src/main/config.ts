@@ -33,56 +33,32 @@ export type SttProviderName = 'whisper' | 'deepgram';
 export interface Config {
   sttProvider: SttProviderName;
   answerProvider: AnswerProviderName;
-
-  // --- local stack (no API key) ---
-  /** Path to a whisper.cpp CLI binary. */
   whisperBinary: string;
-  /** Path to a ggml model file, e.g. ggml-base.en.bin. */
   whisperModel: string;
   whisperThreads: number;
-  /** Base URL of the Ollama daemon. */
   ollamaUrl: string;
   ollamaModel: string;
-  /** Multimodal model used when a screenshot is attached. */
   ollamaVisionModel: string;
-  /** Embedding model used to index materials; empty disables embeddings. */
   ollamaEmbedModel: string;
-
-  /** Folder of notes, prep docs and transcripts consulted on every answer. */
   materialsDir: string;
-  /** How many retrieved chunks to put in front of the model. */
   materialsTopK: number;
-
   anthropicApiKey: string;
   deepgramApiKey: string;
   deepgramModel: string;
-  /** Overridable so the self-tests can point the client at a local server. */
   deepgramEndpoint: string;
   language: string;
-  /** Claude model used to draft answers. */
   answerModel: string;
   answerEffort: Effort;
   answerThinking: ThinkingMode;
   answerMaxTokens: number;
-  /** Answer automatically when the other side asks something question-shaped. */
   autoAnswer: boolean;
-  /** How many transcript lines are handed to Claude as conversation context. */
   contextLines: number;
-  /** Keep the overlay out of screen shares and screenshots. */
   contentProtection: boolean;
-  /** Where the operator's background notes live (resume, product facts, ...). */
   contextFile: string;
-  /** Where the overlay's size, position and pin state are remembered. */
   stateFile: string;
   appRoot: string;
 }
 
-/**
- * Expand a leading `~`. Shells do this before the process ever sees an
- * argument, but a value read from a .env file arrives literal — so a perfectly
- * reasonable `WHISPER_MODEL=~/ggml-base.en.bin` would otherwise be looked up as
- * a directory actually named "~".
- */
 function expandHome(value: string): string {
   if (value === '~') return os.homedir();
   if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2));
@@ -104,16 +80,11 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
   return allowed.includes(v) ? v : fallback;
 }
 
-/**
- * The directory the app was started from. In development that is the project
- * root; in a packaged build it is the resources directory next to the asar.
- */
 function resolveAppRoot(): string {
   if (!app) return process.cwd();
   return app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
 }
 
-/** Where per-user state lives; mirrors Electron's userData outside Electron. */
 function userDataDir(): string {
   return app ? app.getPath('userData') : path.join(os.homedir(), '.cluely');
 }
@@ -128,41 +99,68 @@ function resolveContextFile(appRoot: string): string {
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
-  // Nothing exists yet — point at the user-data copy so "Edit context" can create it.
   return path.join(userDataDir(), 'context.md');
+}
+
+function resolveWhisperModel(): string {
+  const explicit = expandHome((process.env.WHISPER_MODEL ?? '').trim());
+  if (explicit) return explicit;
+
+  const candidates = [
+    path.join(os.homedir(), 'ggml-base.en.bin'),
+    path.join(os.homedir(), '.cluely', 'models', 'ggml-base.en.bin'),
+    path.join(userDataDir(), 'models', 'ggml-base.en.bin'),
+    '/opt/homebrew/share/whisper-cpp/ggml-base.en.bin',
+    '/usr/local/share/whisper-cpp/ggml-base.en.bin',
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? '';
 }
 
 let cached: Config | undefined;
 
 export { expandHome };
 
+export function saveUserEnvSetting(key: string, value: string): void {
+  const file = path.join(userDataDir(), '.env');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  let lines: string[] = [];
+  try {
+    lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  } catch {
+    // first setting
+  }
+  const prefix = `${key}=`;
+  const encoded = value.includes(' ') ? JSON.stringify(value) : value;
+  const replacement = `${prefix}${encoded}`;
+  const index = lines.findIndex((line) => line.startsWith(prefix));
+  if (index >= 0) lines[index] = replacement;
+  else lines.push(replacement);
+  fs.writeFileSync(file, `${lines.filter(Boolean).join('\n')}\n`, 'utf8');
+}
+
 export function loadConfig(): Config {
   if (cached) return cached;
 
   const appRoot = resolveAppRoot();
-  // .env next to the app wins; a .env in the user-data dir is the fallback for
-  // packaged builds where the app directory is read-only.
-  for (const envPath of [path.join(appRoot, '.env'), path.join(userDataDir(), '.env')]) {
-    if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
-  }
+  const appEnv = path.join(appRoot, '.env');
+  const userEnv = path.join(userDataDir(), '.env');
+  if (fs.existsSync(appEnv)) dotenv.config({ path: appEnv });
+  if (fs.existsSync(userEnv)) dotenv.config({ path: userEnv, override: true });
 
   const materialsDir = expandHome((process.env.MATERIALS_DIR ?? '').trim()) || path.join(appRoot, 'materials');
 
   cached = {
     sttProvider: oneOf(process.env.STT_PROVIDER, ['whisper', 'deepgram'] as const, 'whisper'),
     answerProvider: oneOf(process.env.ANSWER_PROVIDER, ['ollama', 'claude'] as const, 'ollama'),
-
     whisperBinary: expandHome((process.env.WHISPER_BINARY ?? 'whisper-cli').trim()),
-    whisperModel: expandHome((process.env.WHISPER_MODEL ?? '').trim()),
+    whisperModel: resolveWhisperModel(),
     whisperThreads: int(process.env.WHISPER_THREADS, 4),
     ollamaUrl: (process.env.OLLAMA_URL ?? 'http://127.0.0.1:11434').trim().replace(/\/$/, ''),
     ollamaModel: (process.env.OLLAMA_MODEL ?? 'llama3.1:8b').trim(),
     ollamaVisionModel: (process.env.OLLAMA_VISION_MODEL ?? 'llava:7b').trim(),
     ollamaEmbedModel: (process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text').trim(),
-
     materialsDir,
     materialsTopK: int(process.env.MATERIALS_TOP_K, 4),
-
     anthropicApiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(),
     deepgramApiKey: (process.env.DEEPGRAM_API_KEY ?? '').trim(),
     deepgramModel: (process.env.DEEPGRAM_MODEL ?? 'nova-3').trim(),
@@ -182,13 +180,17 @@ export function loadConfig(): Config {
   return cached;
 }
 
-/** Operator background notes, re-read from disk on every answer so edits apply live. */
 export function readOperatorContext(cfg: Config): string {
   try {
     return fs.readFileSync(cfg.contextFile, 'utf8').trim();
   } catch {
     return '';
   }
+}
+
+export function writeOperatorContext(cfg: Config, text: string): void {
+  fs.mkdirSync(path.dirname(cfg.contextFile), { recursive: true });
+  fs.writeFileSync(cfg.contextFile, text, 'utf8');
 }
 
 export function ensureContextFile(cfg: Config): string {
@@ -199,7 +201,7 @@ export function ensureContextFile(cfg: Config): string {
       [
         '# Context for the copilot',
         '',
-        'Anything here is given to Claude on every answer. Keep it short and factual.',
+        'Anything here is given to the answer model on every answer. Keep it short and factual.',
         '',
         '## Who I am',
         '- ',
