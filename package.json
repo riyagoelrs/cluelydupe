@@ -16,7 +16,8 @@
     "dev": "npm run build && electron . --dev",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "test": "npm run build:main && node --test test/selftest.mjs test/local.mjs test/audio.mjs",
-    "smoke": "npm run build && electron scripts/smoke.cjs"
+    "smoke": "npm run build && electron scripts/smoke.cjs",
+    "check:resize": "npm run build && electron scripts/resize-check.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
