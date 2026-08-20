@@ -30,6 +30,27 @@ export interface Status {
   message?: string;
 }
 
+export type PermissionState = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown';
+
+export interface SetupState {
+  whisperModel: { ok: boolean; path: string };
+  whisperBinary: { ok: boolean; value: string };
+  screenPermission: PermissionState;
+  microphonePermission: PermissionState;
+  ollama: {
+    running: boolean;
+    answerModel: { ok: boolean; name: string };
+    embedModel: { ok: boolean; name: string };
+    visionModel: { ok: boolean; name: string };
+    url: string;
+  };
+}
+
+export interface MaterialImportResult {
+  added: string[];
+  errors: string[];
+}
+
 export interface TranscriptLine {
   id: string;
   speaker: Speaker;
