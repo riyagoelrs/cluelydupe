@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
 import { ensureContextFile, loadConfig, type Config } from './config';
 import { createSttProvider, type SttProvider, type SttSession } from './stt';
 import { Materials } from './materials';
@@ -43,7 +43,7 @@ class App {
   private answered = new Map<string, number>();
   private wired = false;
   private state: WindowState;
-  private resizing: NodeJS.Timeout | undefined;
+  private resizeOrigin: { x: number; y: number; width: number; height: number } | undefined;
 
   constructor() {
     this.cfg = loadConfig();
@@ -272,6 +272,9 @@ class App {
     ipcMain.on('ctl:hide', () => this.overlay?.hide());
     ipcMain.on('ctl:toggle-pin', () => this.setPinned(!this.status.pinned));
     ipcMain.on('ctl:resize-begin', () => this.beginResize());
+    ipcMain.on('ctl:resize-to', (_event, width: number | null, height: number | null) =>
+      this.resizeTo(width, height),
+    );
     ipcMain.on('ctl:resize-end', () => this.endResize());
     ipcMain.on('ctl:quit', () => app.quit());
   }
@@ -340,34 +343,33 @@ class App {
   }
 
   /**
-   * Frameless transparent windows have no OS resize handles, so the corner grip
-   * drives it. The pointer is polled from the screen rather than tracked through
-   * mouse events, because a drag routinely travels outside the window and the
-   * renderer stops hearing about it the moment it does.
+   * Frameless transparent windows get no OS resize handles, so the edge grips
+   * drive it. The renderer holds a pointer capture and reports screen-space
+   * deltas, which keeps working after the cursor leaves the window — which it
+   * does within a few pixels of starting to drag outward.
    */
   private beginResize(): void {
-    if (!this.overlay || this.resizing) return;
-    const start = screen.getCursorScreenPoint();
-    const origin = this.overlay.getBounds();
+    if (!this.overlay) return;
+    this.resizeOrigin = this.overlay.getBounds();
+  }
 
-    this.resizing = setInterval(() => {
-      if (!this.overlay || this.overlay.isDestroyed()) return this.endResize();
-      const now = screen.getCursorScreenPoint();
-      this.overlay.setBounds(
-        clampToDisplay({
-          x: origin.x,
-          y: origin.y,
-          width: Math.max(MIN_WIDTH, origin.width + (now.x - start.x)),
-          height: Math.max(MIN_HEIGHT, origin.height + (now.y - start.y)),
-        }),
-      );
-    }, 16);
+  /** null means "leave this dimension alone" — an edge grip only drives one. */
+  private resizeTo(width: number | null, height: number | null): void {
+    const origin = this.resizeOrigin;
+    if (!origin || !this.overlay || this.overlay.isDestroyed()) return;
+    this.overlay.setBounds(
+      clampToDisplay({
+        x: origin.x,
+        y: origin.y,
+        width: Math.max(MIN_WIDTH, width ?? origin.width),
+        height: Math.max(MIN_HEIGHT, height ?? origin.height),
+      }),
+    );
   }
 
   private endResize(): void {
-    if (!this.resizing) return;
-    clearInterval(this.resizing);
-    this.resizing = undefined;
+    if (!this.resizeOrigin) return;
+    this.resizeOrigin = undefined;
     if (this.overlay && !this.overlay.isDestroyed()) {
       const { x, y, width, height } = this.overlay.getBounds();
       this.state = { ...this.state, x, y, width, height };

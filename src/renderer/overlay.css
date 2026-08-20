@@ -219,19 +219,41 @@ html, body {
 
 /* ------------------------------------------------------------------- resize */
 
-/* A frameless transparent window gets no OS resize handles, so this is it. */
-.grip {
+/* A frameless transparent window gets no OS resize handles, so these are it.
+   Full edges rather than only a corner — a 16px target is hard to hit. */
+.grip-edge {
   position: fixed;
-  /* Inset so it clears the shell's rounded corner instead of hiding in it. */
-  right: 3px;
-  bottom: 3px;
-  width: 16px;
-  height: 16px;
-  cursor: nwse-resize;
   -webkit-app-region: no-drag;
-  background:
-    linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 58%, transparent 58%,
-      transparent 68%, var(--muted) 68%, var(--muted) 81%, transparent 81%);
-  opacity: 0.75;
+  z-index: 10;
 }
-.grip:hover { opacity: 1; }
+
+.grip-right {
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.grip-bottom {
+  left: 0;
+  bottom: 0;
+  height: 7px;
+  width: 100%;
+  cursor: ns-resize;
+}
+
+.grip-corner {
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 42%, var(--muted) 42%, var(--muted) 55%, transparent 55%,
+      transparent 66%, var(--muted) 66%, var(--muted) 79%, transparent 79%);
+  opacity: 0.8;
+}
+
+.grip-edge:hover { background-color: rgba(124, 140, 255, 0.25); }
+.grip-corner:hover { opacity: 1; }

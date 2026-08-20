@@ -23,6 +23,8 @@ const api = {
   hide: () => ipcRenderer.send('ctl:hide'),
   togglePin: () => ipcRenderer.send('ctl:toggle-pin'),
   resizeBegin: () => ipcRenderer.send('ctl:resize-begin'),
+  resizeTo: (width: number | null, height: number | null) =>
+    ipcRenderer.send('ctl:resize-to', width, height),
   resizeEnd: () => ipcRenderer.send('ctl:resize-end'),
   quit: () => ipcRenderer.send('ctl:quit'),
 };

@@ -153,9 +153,10 @@ including full-screen Zoom, and on every space — which is what you want mid-ca
 nothing else. Click **Pin** off and it becomes an ordinary window that sits behind
 whatever you focus. `⌘/Ctrl+Shift+P` toggles it, and the choice is remembered.
 
-**To resize**, drag the diagonal grip in the bottom-right corner. A frameless
-transparent window gets no resize handles from the OS, so that grip is the only way.
-Size and position are remembered between runs; minimum is 320×220.
+**To resize**, drag the **right edge, bottom edge, or the corner grip** — the whole
+edge is draggable, not just the corner. A frameless transparent window gets no resize
+handles from the OS, so these are the only way. Size and position are remembered
+between runs; minimum is 320×220.
 
 The window is frameless and has no menu bar, so **—** hides it (bring it back with
 `⌘/Ctrl+Shift+H`) and **✕** quits.

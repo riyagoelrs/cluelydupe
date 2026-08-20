@@ -15,6 +15,7 @@ interface OverlayApi {
   hide(): void;
   togglePin(): void;
   resizeBegin(): void;
+  resizeTo(width: number | null, height: number | null): void;
   resizeEnd(): void;
   openContext(): void;
   openMaterials(): void;
@@ -201,15 +202,52 @@ el('btn-screen').addEventListener('click', () => window.cluely.answerScreen());
 el('btn-hide').addEventListener('click', () => window.cluely.hide());
 btnPin.addEventListener('click', () => window.cluely.togglePin());
 
-// The grip only starts the drag; main follows the cursor from there, because a
-// resize drag leaves the window almost immediately and mouse events stop.
-const grip = el('grip');
-grip.addEventListener('mousedown', (event) => {
-  event.preventDefault();
-  window.cluely.resizeBegin();
-});
-window.addEventListener('mouseup', () => window.cluely.resizeEnd());
-window.addEventListener('blur', () => window.cluely.resizeEnd());
+// Resizing uses a pointer capture rather than window-level mouse listeners: a
+// drag outward leaves the window within a few pixels, and once it does the
+// window stops receiving mousemove and mouseup entirely — so the drag would
+// never end and the panel would follow the cursor indefinitely.
+//
+// Sizes are computed from client coordinates, not screen coordinates. The
+// window's top-left corner does not move while dragging its bottom or right
+// edge, so client coordinates stay a stable reference and can exceed the window
+// bounds during a capture — exactly what resizing outward needs.
+function makeGrip(id: string, axis: 'x' | 'y' | 'both'): void {
+  const grip = el(id);
+  /** Distance from the pointer to the edge at grab time, so it doesn't jump. */
+  let offset: { x: number; y: number } | undefined;
+
+  grip.addEventListener('pointerdown', (event: PointerEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    grip.setPointerCapture(event.pointerId);
+    offset = {
+      x: window.innerWidth - event.clientX,
+      y: window.innerHeight - event.clientY,
+    };
+    window.cluely.resizeBegin();
+  });
+
+  grip.addEventListener('pointermove', (event: PointerEvent) => {
+    if (!offset) return;
+    window.cluely.resizeTo(
+      axis === 'y' ? null : Math.round(event.clientX + offset.x),
+      axis === 'x' ? null : Math.round(event.clientY + offset.y),
+    );
+  });
+
+  const finish = (event: PointerEvent) => {
+    if (!offset) return;
+    offset = undefined;
+    if (grip.hasPointerCapture(event.pointerId)) grip.releasePointerCapture(event.pointerId);
+    window.cluely.resizeEnd();
+  };
+  grip.addEventListener('pointerup', finish);
+  grip.addEventListener('pointercancel', finish);
+}
+
+makeGrip('grip-right', 'x');
+makeGrip('grip-bottom', 'y');
+makeGrip('grip-corner', 'both');
 el('btn-quit').addEventListener('click', () => window.cluely.quit());
 // Re-index after editing the folder without restarting the app.
 chipDocs.addEventListener('click', () => window.cluely.reloadMaterials());
