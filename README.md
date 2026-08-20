@@ -70,6 +70,31 @@ the exact command to fix anything that's wrong:
 ! materials          folder is empty — nothing to retrieve from
 ```
 
+Then rehearse before you rely on it:
+
+```bash
+cp rehearsal.example.txt rehearsal.txt   # put your real questions in
+npm run rehearse
+```
+
+This runs your questions through the same prompt, the same materials retrieval and
+the same model the app uses, and reports what actually matters — how long until the
+first word appears, and whether the answer is short enough to say out loud:
+
+```
+1. Tell me about the migration you led.
+   first token 0.9s · total 2.4s · 41 words
+   - Moved 40M rows with 12 minutes of downtime
+   - Rollback was a logical replication slot held open for a week
+
+median first token 0.9s · median total 2.4s · median 41 words
+Fast enough for a live call.
+```
+
+Compare models without editing anything: `npm run rehearse -- --model llama3.2:3b`.
+Time-to-first-token is the number to watch — answers stream, so you start reading
+before they finish. Over ~3s and the moment is gone.
+
 `npm test` runs the logic tests — no Whisper, Ollama, or GPU required.
 
 ### Model choices
@@ -162,6 +187,7 @@ All in `.env`; `.env.example` is the annotated list.
 | `OLLAMA_VISION_MODEL` | `llava:7b` | Only used for screen questions |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Blank disables semantic search; keyword search still runs |
 | `MATERIALS_TOP_K` | `4` | More passages = better grounding, slower answers |
+| `ANSWER_MAX_TOKENS` | `1200` | Lower it if a small model rambles |
 | `AUTO_ANSWER` | `true` | `false` makes every answer manual |
 | `SYSTEM_AUDIO_DEVICE` | *(empty)* | Virtual-cable name, when loopback isn't available |
 
@@ -181,6 +207,11 @@ the whisper subprocess against a stub binary, and every whisper CLI flag the app
 was checked against the real `whisper-cli --help`. Screen capture is verified in a real
 Electron process and returns a valid PNG.
 
+If a local model rambles or hedges, the last line of `SYSTEM_PROMPT` in
+`src/main/prompt.ts` is the lever — small models follow a restated constraint at the
+end better than one buried in a list. `npm run rehearse` is how you tell whether an
+edit helped.
+
 **Not verified** — live audio devices, and inference with real model weights. Neither
 can run in a headless CI container. The first time real speech goes in and a real model
 answers will be on your machine, so run `npm run doctor` first and test against a
@@ -199,6 +230,7 @@ src/main/          Electron main — audio routing, transcription, answers
     ollama.ts        local answers, streamed over NDJSON
     claude.ts        cloud alternative behind the same interface
   materials.ts       indexes materials/, retrieves per question
+  prompt.ts          the prompt, shared by the app and `npm run rehearse`
   screen.ts          still capture of the primary display, for screen questions
   transcript.ts      rolling record, one in-flight partial per speaker
   question-detector.ts  local heuristic: "did they just ask me something?"

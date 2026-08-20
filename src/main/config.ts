@@ -1,7 +1,29 @@
-import { app } from 'electron';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
+
+/**
+ * Electron's `app` when running inside Electron, undefined otherwise.
+ *
+ * Outside Electron the `electron` package resolves to a path string rather than
+ * the API object, so command-line tooling (doctor, rehearse) can load this
+ * module and get the same configuration the app sees, instead of duplicating it.
+ */
+function electronApp(): typeof import('electron').app | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const electron = require('electron') as unknown;
+    if (electron && typeof electron === 'object' && 'app' in electron) {
+      return (electron as { app: typeof import('electron').app }).app;
+    }
+  } catch {
+    // not installed, or not running under Electron
+  }
+  return undefined;
+}
+
+const app = electronApp();
 
 export type ThinkingMode = 'off' | 'adaptive';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -73,21 +95,27 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
  * root; in a packaged build it is the resources directory next to the asar.
  */
 function resolveAppRoot(): string {
+  if (!app) return process.cwd();
   return app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
+}
+
+/** Where per-user state lives; mirrors Electron's userData outside Electron. */
+function userDataDir(): string {
+  return app ? app.getPath('userData') : path.join(os.homedir(), '.cluely');
 }
 
 function resolveContextFile(appRoot: string): string {
   const candidates = [
     process.env.CLUELY_CONTEXT,
     path.join(appRoot, 'context.md'),
-    path.join(app.getPath('userData'), 'context.md'),
+    path.join(userDataDir(), 'context.md'),
   ].filter((p): p is string => Boolean(p));
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
   // Nothing exists yet — point at the user-data copy so "Edit context" can create it.
-  return path.join(app.getPath('userData'), 'context.md');
+  return path.join(userDataDir(), 'context.md');
 }
 
 let cached: Config | undefined;
@@ -98,7 +126,7 @@ export function loadConfig(): Config {
   const appRoot = resolveAppRoot();
   // .env next to the app wins; a .env in the user-data dir is the fallback for
   // packaged builds where the app directory is read-only.
-  for (const envPath of [path.join(appRoot, '.env'), path.join(app.getPath('userData'), '.env')]) {
+  for (const envPath of [path.join(appRoot, '.env'), path.join(userDataDir(), '.env')]) {
     if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
   }
 

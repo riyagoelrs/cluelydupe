@@ -1,0 +1,9 @@
+# Questions to rehearse against, one per line. Lines starting with # are ignored.
+# Copy to rehearsal.txt and replace these with the questions you actually get —
+# the point is to see how your model handles YOUR call, not a generic one.
+
+Tell me about yourself.
+Walk me through the hardest technical problem you have solved.
+Why are you leaving your current role?
+How would you handle a disagreement with your manager?
+What questions do you have for us?
