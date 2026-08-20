@@ -14,6 +14,8 @@ interface OverlayApi {
   setClickThrough(enabled: boolean): void;
   hide(): void;
   togglePin(): void;
+  moveBegin(): void;
+  moveEnd(): void;
   resizeBegin(): void;
   resizeTo(width: number | null, height: number | null): void;
   resizeEnd(): void;
@@ -243,6 +245,34 @@ function makeGrip(id: string, axis: 'x' | 'y' | 'both'): void {
   };
   grip.addEventListener('pointerup', finish);
   grip.addEventListener('pointercancel', finish);
+}
+
+// Dragging the bar moves the window. Buttons and chips are excluded so a click
+// on them stays a click.
+const bar = document.querySelector('.bar');
+if (bar) {
+  let dragging = false;
+  bar.addEventListener('pointerdown', (event) => {
+    const pointer = event as PointerEvent;
+    if (pointer.button !== 0) return;
+    if ((pointer.target as HTMLElement).closest('button, .chip, .grip-edge')) return;
+    pointer.preventDefault();
+    (bar as HTMLElement).setPointerCapture(pointer.pointerId);
+    dragging = true;
+    window.cluely.moveBegin();
+  });
+
+  const stopDrag = (event: Event) => {
+    if (!dragging) return;
+    dragging = false;
+    const pointer = event as PointerEvent;
+    if ((bar as HTMLElement).hasPointerCapture(pointer.pointerId)) {
+      (bar as HTMLElement).releasePointerCapture(pointer.pointerId);
+    }
+    window.cluely.moveEnd();
+  };
+  bar.addEventListener('pointerup', stopDrag);
+  bar.addEventListener('pointercancel', stopDrag);
 }
 
 makeGrip('grip-right', 'x');

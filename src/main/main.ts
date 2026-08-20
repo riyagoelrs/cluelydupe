@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
 import { ensureContextFile, loadConfig, type Config } from './config';
 import { createSttProvider, type SttProvider, type SttSession } from './stt';
 import { Materials } from './materials';
@@ -44,6 +44,7 @@ class App {
   private wired = false;
   private state: WindowState;
   private resizeOrigin: { x: number; y: number; width: number; height: number } | undefined;
+  private moveTimer: NodeJS.Timeout | undefined;
 
   constructor() {
     this.cfg = loadConfig();
@@ -261,16 +262,14 @@ class App {
       this.answers.cancel();
       this.send('ui:clear');
     });
-    ipcMain.on('ctl:click-through', (_event, enabled: boolean) => {
-      this.status.clickThrough = enabled;
-      this.overlay?.setIgnoreMouseEvents(enabled, { forward: true });
-      this.pushStatus();
-    });
+    ipcMain.on('ctl:click-through', (_event, enabled: boolean) => this.setClickThrough(enabled));
     ipcMain.on('ctl:open-context', () => {
       void shell.openPath(ensureContextFile(this.cfg));
     });
     ipcMain.on('ctl:hide', () => this.overlay?.hide());
     ipcMain.on('ctl:toggle-pin', () => this.setPinned(!this.status.pinned));
+    ipcMain.on('ctl:move-begin', () => this.beginMove());
+    ipcMain.on('ctl:move-end', () => this.endMove());
     ipcMain.on('ctl:resize-begin', () => this.beginResize());
     ipcMain.on('ctl:resize-to', (_event, width: number | null, height: number | null) =>
       this.resizeTo(width, height),
@@ -322,6 +321,9 @@ class App {
       ['CommandOrControl+Shift+K', () => ipcMain.emit('ctl:clear')],
       ['CommandOrControl+Shift+Q', () => app.quit()],
       ['CommandOrControl+Shift+P', () => this.setPinned(!this.status.pinned)],
+      // Click-through makes the Ghost button itself unclickable, so the only way
+      // back out has to be a key.
+      ['CommandOrControl+Shift+G', () => this.setClickThrough(!this.status.clickThrough)],
       ['CommandOrControl+Shift+Left', () => this.nudgeOverlay(-60, 0)],
       ['CommandOrControl+Shift+Right', () => this.nudgeOverlay(60, 0)],
     ];
@@ -332,6 +334,12 @@ class App {
         console.warn(`[cluely] could not register hotkey ${accelerator}`);
       }
     }
+  }
+
+  private setClickThrough(enabled: boolean): void {
+    this.status.clickThrough = enabled;
+    this.overlay?.setIgnoreMouseEvents(enabled, { forward: true });
+    this.pushStatus();
   }
 
   private setPinned(pinned: boolean): void {
@@ -351,6 +359,45 @@ class App {
   private beginResize(): void {
     if (!this.overlay) return;
     this.resizeOrigin = this.overlay.getBounds();
+  }
+
+  /**
+   * Dragging the title bar moves the window.
+   *
+   * This does not use `-webkit-app-region: drag`. That is a Chromium feature
+   * with platform-specific behaviour that cannot be exercised in a headless
+   * test at all, and an untestable mechanism is how the resize bug survived two
+   * releases. The cursor is polled from the OS instead — no feedback loop,
+   * since the window follows the pointer rather than the pointer following the
+   * window — and the drag ends on a pointerup the renderer's capture guarantees.
+   */
+  private beginMove(): void {
+    if (!this.overlay || this.moveTimer) return;
+    const startWindow = this.overlay.getBounds();
+    const startCursor = screen.getCursorScreenPoint();
+    const startedAt = Date.now();
+
+    this.moveTimer = setInterval(() => {
+      if (!this.overlay || this.overlay.isDestroyed()) return this.endMove();
+      // Belt and braces: never let a missed release strand the window on the cursor.
+      if (Date.now() - startedAt > 60_000) return this.endMove();
+      const now = screen.getCursorScreenPoint();
+      this.overlay.setPosition(
+        startWindow.x + (now.x - startCursor.x),
+        startWindow.y + (now.y - startCursor.y),
+      );
+    }, 16);
+  }
+
+  private endMove(): void {
+    if (!this.moveTimer) return;
+    clearInterval(this.moveTimer);
+    this.moveTimer = undefined;
+    if (this.overlay && !this.overlay.isDestroyed()) {
+      const { x, y, width, height } = this.overlay.getBounds();
+      this.state = { ...this.state, x, y, width, height };
+      saveState(this.cfg.stateFile, this.state);
+    }
   }
 
   /** null means "leave this dimension alone" — an edge grip only drives one. */
@@ -403,6 +450,7 @@ class App {
   }
 
   shutdown(): void {
+    this.endMove();
     this.endResize();
     globalShortcut.unregisterAll();
     this.closeSessions();

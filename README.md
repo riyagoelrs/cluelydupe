@@ -139,6 +139,8 @@ strip at the bottom.
 | `⌘/Ctrl+Shift+H` | Hide / show the overlay |
 | `⌘/Ctrl+Shift+K` | Clear transcript and answers |
 | `⌘/Ctrl+Shift+Q` | Quit |
+| `⌘/Ctrl+Shift+G` | Toggle Ghost (click-through) — the way out when it's on |
+| `⌘/Ctrl+Shift+P` | Pin / unpin (float above everything, or sit behind windows) |
 | `⌘/Ctrl+Shift+P` | Pin / unpin (float above everything, or let windows cover it) |
 | `⌘/Ctrl+Shift+←/→` | Nudge the overlay sideways |
 
@@ -153,7 +155,8 @@ including full-screen Zoom, and on every space — which is what you want mid-ca
 nothing else. Click **Pin** off and it becomes an ordinary window that sits behind
 whatever you focus. `⌘/Ctrl+Shift+P` toggles it, and the choice is remembered.
 
-**To resize**, drag the **right edge, bottom edge, or the corner grip** — the whole
+**To move it**, drag the title bar. **To resize**, drag the **right edge, bottom edge,
+or the corner grip** — the whole
 edge is draggable, not just the corner. A frameless transparent window gets no resize
 handles from the OS, so these are the only way. Size and position are remembered
 between runs; minimum is 320×220.
@@ -162,7 +165,8 @@ The window is frameless and has no menu bar, so **—** hides it (bring it back 
 `⌘/Ctrl+Shift+H`) and **✕** quits.
 
 Title bar: **Screen** reads your screen, **Auto** toggles automatic answering, **Ghost** makes the overlay
-click-through (move the pointer over the title bar to get it back), **Notes** opens
+click-through — which also makes the Ghost button itself unclickable, so
+`⌘/Ctrl+Shift+G` is how you turn it back off, **Notes** opens
 `context.md`, **Docs** opens `materials/`.
 
 The overlay sets `setContentProtection(true)`, so it stays out of screen shares and

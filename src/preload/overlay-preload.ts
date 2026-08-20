@@ -22,6 +22,8 @@ const api = {
   reloadMaterials: () => ipcRenderer.send('ctl:reload-materials'),
   hide: () => ipcRenderer.send('ctl:hide'),
   togglePin: () => ipcRenderer.send('ctl:toggle-pin'),
+  moveBegin: () => ipcRenderer.send('ctl:move-begin'),
+  moveEnd: () => ipcRenderer.send('ctl:move-end'),
   resizeBegin: () => ipcRenderer.send('ctl:resize-begin'),
   resizeTo: (width: number | null, height: number | null) =>
     ipcRenderer.send('ctl:resize-to', width, height),
