@@ -75,6 +75,18 @@ export interface Config {
   appRoot: string;
 }
 
+/**
+ * Expand a leading `~`. Shells do this before the process ever sees an
+ * argument, but a value read from a .env file arrives literal — so a perfectly
+ * reasonable `WHISPER_MODEL=~/ggml-base.en.bin` would otherwise be looked up as
+ * a directory actually named "~".
+ */
+function expandHome(value: string): string {
+  if (value === '~') return os.homedir();
+  if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2));
+  return value;
+}
+
 function bool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined || value.trim() === '') return fallback;
   return /^(1|true|yes|on)$/i.test(value.trim());
@@ -106,7 +118,7 @@ function userDataDir(): string {
 
 function resolveContextFile(appRoot: string): string {
   const candidates = [
-    process.env.CLUELY_CONTEXT,
+    process.env.CLUELY_CONTEXT ? expandHome(process.env.CLUELY_CONTEXT.trim()) : undefined,
     path.join(appRoot, 'context.md'),
     path.join(userDataDir(), 'context.md'),
   ].filter((p): p is string => Boolean(p));
@@ -120,6 +132,8 @@ function resolveContextFile(appRoot: string): string {
 
 let cached: Config | undefined;
 
+export { expandHome };
+
 export function loadConfig(): Config {
   if (cached) return cached;
 
@@ -130,14 +144,14 @@ export function loadConfig(): Config {
     if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
   }
 
-  const materialsDir = (process.env.MATERIALS_DIR ?? '').trim() || path.join(appRoot, 'materials');
+  const materialsDir = expandHome((process.env.MATERIALS_DIR ?? '').trim()) || path.join(appRoot, 'materials');
 
   cached = {
     sttProvider: oneOf(process.env.STT_PROVIDER, ['whisper', 'deepgram'] as const, 'whisper'),
     answerProvider: oneOf(process.env.ANSWER_PROVIDER, ['ollama', 'claude'] as const, 'ollama'),
 
-    whisperBinary: (process.env.WHISPER_BINARY ?? 'whisper-cli').trim(),
-    whisperModel: (process.env.WHISPER_MODEL ?? '').trim(),
+    whisperBinary: expandHome((process.env.WHISPER_BINARY ?? 'whisper-cli').trim()),
+    whisperModel: expandHome((process.env.WHISPER_MODEL ?? '').trim()),
     whisperThreads: int(process.env.WHISPER_THREADS, 4),
     ollamaUrl: (process.env.OLLAMA_URL ?? 'http://127.0.0.1:11434').trim().replace(/\/$/, ''),
     ollamaModel: (process.env.OLLAMA_MODEL ?? 'llama3.1:8b').trim(),

@@ -421,3 +421,13 @@ test('doctor passes a healthy local setup and fails a truncated model', async ()
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('config expands ~ so .env paths match what the doctor validates', async () => {
+  const { expandHome } = await import('../dist/main/config.js');
+  assert.equal(expandHome('~/ggml-base.en.bin'), path.join(os.homedir(), 'ggml-base.en.bin'));
+  assert.equal(expandHome('~'), os.homedir());
+  // Only a leading ~ is a home reference; these are ordinary paths.
+  assert.equal(expandHome('/opt/models/~weird.bin'), '/opt/models/~weird.bin');
+  assert.equal(expandHome('~notauser/file'), '~notauser/file');
+  assert.equal(expandHome(''), '');
+});
