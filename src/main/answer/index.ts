@@ -1,6 +1,7 @@
 import type { Config } from '../config';
 import { ClaudeProvider } from './claude';
 import { OllamaProvider } from './ollama';
+import { OpenAIProvider } from './openai';
 import type { AnswerProvider } from './types';
 
 export function createAnswerProvider(cfg: Config): AnswerProvider {
@@ -9,6 +10,8 @@ export function createAnswerProvider(cfg: Config): AnswerProvider {
       return new OllamaProvider(cfg);
     case 'claude':
       return new ClaudeProvider(cfg);
+    case 'openai':
+      return new OpenAIProvider(cfg);
   }
 }
 
